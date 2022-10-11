@@ -1,0 +1,24 @@
+{
+  "data": {
+    "magic": "APF_VER_1",
+    "data_slots": [
+      {
+        "name": "Color ROM",
+        "id": 0,
+        "required": true,
+        "parameters": "0x109",
+        "extensions": ["ws"],
+        "address": "0x10000000"
+      },
+      {
+        "name": "B&W BIOS",
+        "id": 9,
+        "required": true,
+        "filename": "bw.rom",
+        "parameters": "0x0",
+        "extensions": ["rom"],
+        "address": "0x10000000"
+      }
+    ]
+  }
+}
