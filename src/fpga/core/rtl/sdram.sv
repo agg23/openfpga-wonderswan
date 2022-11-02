@@ -170,8 +170,8 @@ always @(posedge clk) begin
 			SDRAM_A    <= 0;
 			SDRAM_BA   <= 0;
 
-			if (refresh_count == (startup_refresh_max-64)) chip <= 0;
-			if (refresh_count == (startup_refresh_max-32)) chip <= 1;
+			// if (refresh_count == (startup_refresh_max-64)) chip <= 0;
+			// if (refresh_count == (startup_refresh_max-32)) chip <= 1;
 
 			// All the commands during the startup are NOPS, except these
 			if (refresh_count == startup_refresh_max-63 || refresh_count == startup_refresh_max-31) begin
@@ -205,22 +205,23 @@ always @(posedge clk) begin
 		STATE_IDLE_2: state <= STATE_IDLE_1;
 		STATE_IDLE_1: state <= STATE_IDLE;
 
-		STATE_RFSH: begin
-			state    <= STATE_IDLE_5;
-			command  <= CMD_AUTO_REFRESH;
-			chip     <= 1;
-		end
+		// STATE_RFSH: begin
+		// 	state    <= STATE_IDLE_5;
+		// 	command  <= CMD_AUTO_REFRESH;
+		// 	// chip     <= 1;
+		// end
 
 		STATE_IDLE: begin
 			if (refresh_count > cycles_per_refresh) begin // emergency refresh, mainly for downloading rom/paused core
-				state         <= STATE_RFSH;
+				// state         <= STATE_RFSH;
+				state <= STATE_IDLE_5;
 				command       <= CMD_AUTO_REFRESH;
 				refresh_count <= refresh_count - cycles_per_refresh + 1'd1;
-				chip          <= 0;
+				// chip          <= 0;
 			end 
 			else if(ch1_rq) begin
 				{cas_addr[12:9],SDRAM_BA,SDRAM_A,cas_addr[8:0]} <= {2'b00, 1'b1, ch1_addr[25:1]};
-				chip       <= ch1_addr[26];
+				// chip       <= ch1_addr[26];
 				saved_data <= ch1_din;
 				saved_wr   <= ~ch1_rnw;
 				ch         <= 0;
@@ -230,7 +231,7 @@ always @(posedge clk) begin
 			end
 			else if(ch2_rq) begin
 				{cas_addr[12:9],SDRAM_BA,SDRAM_A,cas_addr[8:0]} <= {2'b00, 1'b1, ch2_addr[25:1]};
-				chip       <= ch2_addr[26];
+				// chip       <= ch2_addr[26];
 				saved_data <= ch2_din;
 				saved_wr   <= ~ch2_rnw;
 				ch         <= 1;
@@ -239,7 +240,7 @@ always @(posedge clk) begin
 				state      <= STATE_WAIT;
 			end
 			else if(ch3_rq) begin
-				chip       <= ch3_addr_1[26];
+				// chip       <= ch3_addr_1[26];
 				saved_data <= ch3_din_1;
 				saved_wr   <= ~ch3_rnw_1;
 				ch         <= 2;
@@ -252,10 +253,11 @@ always @(posedge clk) begin
 				state      <= STATE_WAIT;
 			end
 			else if (doRefresh_1) begin
-				state         <= STATE_RFSH;
+				// state         <= STATE_RFSH;
+				state <= STATE_IDLE_5;
 				command       <= CMD_AUTO_REFRESH;
 				refresh_count <= 0;
-				chip          <= 0;
+				// chip          <= 0;
 			end
 		end
 
