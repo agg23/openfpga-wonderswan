@@ -14,10 +14,15 @@ module wonderswan (
     // 1 for B&W bios, 2 for color bios
     input wire [ 1:0] bios_download,
 
-    // Exfil
-    input wire sd_rd,
-    input wire [24:0] sd_buff_addr,
-    output wire [15:0] sd_buff_din_out,
+    // Inputs
+    input wire button_a,
+    input wire button_b,
+    input wire button_start,
+    input wire button_select,
+    input wire dpad_up,
+    input wire dpad_down,
+    input wire dpad_left,
+    input wire dpad_right,
 
     // SDRAM
     output wire [12:0] dram_a,
@@ -49,7 +54,7 @@ module wonderswan (
   wire fast_forward = 0;
 
   wire [11:0] sd_lba = 0;
-  // wire  [7:0] sd_buff_addr;
+  wire  [7:0] sd_buff_addr;
   wire [15:0] sd_buff_dout;
   wire [15:0] sd_buff_din;
   wire        sd_buff_wr;
@@ -87,10 +92,9 @@ module wonderswan (
 
       .doRefresh(EXTRAM_doRefresh),
 
-      .ch1_addr (sd_rd ? sd_buff_addr[24:1] : ioctl_addr[24:1]),
+      .ch1_addr (ioctl_addr[24:1]),
       .ch1_din  (ioctl_dout),
-      .ch1_dout(sd_buff_din_out),
-      .ch1_req  (ioctl_wr || sd_rd),
+      .ch1_req  (ioctl_wr),
       .ch1_rnw  (cart_download ? 1'b0 : 1'b1),
       .ch1_ready(sdram_ack),
       // .ch1_dout (),
@@ -248,13 +252,13 @@ module wonderswan (
       .KeyY2   (joystick_0[7]),
       .KeyY3   (joystick_0[9]),
       .KeyY4   (joystick_0[8]),
-      .KeyX1   (joystick_0[3]),
-      .KeyX2   (joystick_0[0]),
-      .KeyX3   (joystick_0[2]),
-      .KeyX4   (joystick_0[1]),
-      .KeyStart(joystick_0[6]),
-      .KeyA    (joystick_0[4]),
-      .KeyB    (joystick_0[5]),
+      .KeyX1   (dpad_up),
+      .KeyX2   (dpad_right),
+      .KeyX3   (dpad_down),
+      .KeyX4   (dpad_left),
+      .KeyStart(button_start),
+      .KeyA    (button_a),
+      .KeyB    (button_b),
 
       // RTC
       // .RTC_timestampNew(RTC_time[32]),

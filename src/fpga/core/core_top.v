@@ -314,9 +314,6 @@ module core_top (
       default: begin
         bridge_rd_data <= 0;
       end
-      32'h1xxxxxxx: begin
-        bridge_rd_data <= sd_read_data;
-      end
       32'h10xxxxxx: begin
         // example
         // bridge_rd_data <= example_device_data;
@@ -466,31 +463,6 @@ module core_top (
       .write_data(ioctl_dout)
   );
 
-  wire [31:0] sd_read_data;
-
-  wire sd_rd;
-  wire [24:0] sd_buff_addr_out;
-  wire [15:0] sd_buff_din;
-
-  data_unloader #(
-      .ADDRESS_MASK_UPPER_4(4'h1),
-      .ADDRESS_SIZE(25),
-      .INPUT_WORD_SIZE(2),
-      .READ_MEM_CLOCK_DELAY(10)
-  ) data_unloader (
-      .clk_74a(clk_74a),
-      .clk_memory(clk_sys_36_864),
-
-      .bridge_rd(bridge_rd),
-      .bridge_endian_little(bridge_endian_little),
-      .bridge_addr(bridge_addr),
-      .bridge_rd_data(sd_read_data),
-
-      .read_en  (sd_rd),
-      .read_addr(sd_buff_addr_out),
-      .read_data(sd_buff_din)
-  );
-
   wire [15:0] audio_l;
   wire [15:0] audio_r;
 
@@ -517,11 +489,20 @@ module core_top (
     end
   end
 
+  wire [15:0] cont1_key_s;
+
+  synch_3 #(
+      .WIDTH(32)
+  ) cont1_s (
+      cont1_key,
+      cont1_key_s,
+      clk_sys_36_864
+  );
+
   wonderswan wonderswan (
       .clk_sys_36_864 (clk_sys_36_864),
       .clk_mem_110_592(clk_mem_110_592),
 
-      // .reset_n(pll_core_locked),
       .reset_n(reset_n),
       .pll_core_locked(pll_core_locked),
 
@@ -529,13 +510,18 @@ module core_top (
       .ioctl_addr(ioctl_addr),
       .ioctl_dout(ioctl_dout),
 
-      // Data exfil
-      .sd_rd(sd_rd),
-      .sd_buff_addr(sd_buff_addr_out),
-      .sd_buff_din_out(sd_buff_din),
-
       .ext_cart_download(cart_download),
       .bios_download(bios_download),
+
+      // Inputs
+      .button_a(cont1_key_s[4]),
+      .button_b(cont1_key_s[5]),
+      .button_start(cont1_key_s[15]),
+      .button_select(cont1_key_s[14]),
+      .dpad_up(cont1_key_s[0]),
+      .dpad_down(cont1_key_s[1]),
+      .dpad_left(cont1_key_s[2]),
+      .dpad_right(cont1_key_s[3]),
 
       // SDRAM
       .dram_a(dram_a),

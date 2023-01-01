@@ -26,7 +26,7 @@
         "parameters": "0x84",
         "nonvolatile": true,
         "extensions": ["sav"],
-        "address": "0x10000000"
+        "address": "0x20000000"
       }
     ]
   }
