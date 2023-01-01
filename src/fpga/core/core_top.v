@@ -314,6 +314,9 @@ module core_top (
       default: begin
         bridge_rd_data <= 0;
       end
+      32'h1xxxxxxx: begin
+        bridge_rd_data <= sd_read_data;
+      end
       32'h10xxxxxx: begin
         // example
         // bridge_rd_data <= example_device_data;
@@ -375,9 +378,9 @@ module core_top (
 
   // bridge data slot access
 
-  wire [9:0] datatable_addr;
-  wire datatable_wren;
-  wire [31:0] datatable_data;
+  reg [9:0] datatable_addr;
+  reg datatable_wren;
+  reg [31:0] datatable_data;
   wire [31:0] datatable_q;
 
   core_bridge_cmd icb (
@@ -463,22 +466,30 @@ module core_top (
       .write_data(ioctl_dout)
   );
 
-  //   data_unloader #(
-  //       .ADDRESS_MASK_UPPER_4(4'h2),
-  //       .ADDRESS_SIZE(25)
-  //   ) data_unloader (
-  //       .clk_74a(clk_74a),
-  //       .clk_memory(clk_sys_21_48),
+  wire [31:0] sd_read_data;
 
-  //       .bridge_rd(bridge_rd),
-  //       .bridge_endian_little(bridge_endian_little),
-  //       .bridge_addr(bridge_addr),
-  //       .bridge_rd_data(sd_read_data),
+  wire sd_rd;
+  wire [24:0] sd_buff_addr_out;
+  wire [15:0] sd_buff_din;
 
-  //       .read_en  (sd_rd),
-  //       .read_addr(sd_buff_addr_out),
-  //       .read_data(sd_buff_din)
-  //   );
+  data_unloader #(
+      .ADDRESS_MASK_UPPER_4(4'h1),
+      .ADDRESS_SIZE(25),
+      .INPUT_WORD_SIZE(2),
+      .READ_MEM_CLOCK_DELAY(10)
+  ) data_unloader (
+      .clk_74a(clk_74a),
+      .clk_memory(clk_sys_36_864),
+
+      .bridge_rd(bridge_rd),
+      .bridge_endian_little(bridge_endian_little),
+      .bridge_addr(bridge_addr),
+      .bridge_rd_data(sd_read_data),
+
+      .read_en  (sd_rd),
+      .read_addr(sd_buff_addr_out),
+      .read_data(sd_buff_din)
+  );
 
   wire [15:0] audio_l;
   wire [15:0] audio_r;
@@ -492,6 +503,20 @@ module core_top (
   wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
   wire [1:0] bios_download = {color_bios, bw_bios};
 
+  always @(posedge clk_74a or negedge pll_core_locked) begin
+    if (~pll_core_locked) begin
+      datatable_addr <= 0;
+      datatable_data <= 0;
+      datatable_wren <= 0;
+    end else begin
+      // Write sram size
+      datatable_wren <= 1;
+      datatable_data <= 32'h100_000;
+      // Data slot index 2, not id 2
+      datatable_addr <= 2 * 2 + 1;
+    end
+  end
+
   wonderswan wonderswan (
       .clk_sys_36_864 (clk_sys_36_864),
       .clk_mem_110_592(clk_mem_110_592),
@@ -503,6 +528,11 @@ module core_top (
       .ioctl_wr  (ioctl_wr),
       .ioctl_addr(ioctl_addr),
       .ioctl_dout(ioctl_dout),
+
+      // Data exfil
+      .sd_rd(sd_rd),
+      .sd_buff_addr(sd_buff_addr_out),
+      .sd_buff_din_out(sd_buff_din),
 
       .ext_cart_download(cart_download),
       .bios_download(bios_download),

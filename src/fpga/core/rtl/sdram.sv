@@ -60,6 +60,8 @@ module sdram
 	output reg        ch3_ready
 );
 
+wire chip = 0;
+
 assign SDRAM_nCS  = chip;
 assign SDRAM_nRAS = command[2];
 assign SDRAM_nCAS = command[1];
@@ -92,7 +94,7 @@ wire [2:0] CMD_LOAD_MODE       = 3'b000;
 
 reg [13:0] refresh_count = startup_refresh_max - sdram_startup_cycles;
 reg  [2:0] command;
-reg        chip;
+// reg        chip;
 
 localparam STATE_STARTUP = 0;
 localparam STATE_WAIT    = 1;

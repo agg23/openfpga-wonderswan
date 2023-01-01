@@ -14,6 +14,11 @@ module wonderswan (
     // 1 for B&W bios, 2 for color bios
     input wire [ 1:0] bios_download,
 
+    // Exfil
+    input wire sd_rd,
+    input wire [24:0] sd_buff_addr,
+    output wire [15:0] sd_buff_din_out,
+
     // SDRAM
     output wire [12:0] dram_a,
     output wire [ 1:0] dram_ba,
@@ -44,7 +49,7 @@ module wonderswan (
   wire fast_forward = 0;
 
   wire [11:0] sd_lba = 0;
-  wire  [7:0] sd_buff_addr;
+  // wire  [7:0] sd_buff_addr;
   wire [15:0] sd_buff_dout;
   wire [15:0] sd_buff_din;
   wire        sd_buff_wr;
@@ -82,9 +87,10 @@ module wonderswan (
 
       .doRefresh(EXTRAM_doRefresh),
 
-      .ch1_addr (ioctl_addr[24:1]),
+      .ch1_addr (sd_rd ? sd_buff_addr[24:1] : ioctl_addr[24:1]),
       .ch1_din  (ioctl_dout),
-      .ch1_req  (ioctl_wr),
+      .ch1_dout(sd_buff_din_out),
+      .ch1_req  (ioctl_wr || sd_rd),
       .ch1_rnw  (cart_download ? 1'b0 : 1'b1),
       .ch1_ready(sdram_ack),
       // .ch1_dout (),
