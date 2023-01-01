@@ -151,7 +151,7 @@ module wonderswan (
   always @(posedge clk_sys_36_864) begin
     old_download <= cart_download;
     if (old_download & ~cart_download) begin
-      mask_addr  <= ioctl_addr[24:0] - 1'd1;
+      mask_addr  <= ioctl_addr[24:0] + 1'd1;
       cart_ready <= 1;
     end
   end
