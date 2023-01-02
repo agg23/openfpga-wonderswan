@@ -4,6 +4,7 @@ module wonderswan (
 
     input wire reset_n,
     input wire pll_core_locked,
+    input wire external_reset,
 
     // Data in
     input wire        ioctl_wr,
@@ -24,6 +25,17 @@ module wonderswan (
     input wire dpad_left,
     input wire dpad_right,
 
+    // Settings
+    input wire [1:0] configured_system,
+    input wire use_cpu_turbo,
+    input wire use_rewind_capture,
+
+    input wire use_triple_buffer,
+    input wire [1:0] configured_flickerblend,
+    input wire use_flip_horizontal,
+
+    input wire use_fastforward_sound,
+
     // SDRAM
     output wire [12:0] dram_a,
     output wire [ 1:0] dram_ba,
@@ -43,6 +55,8 @@ module wonderswan (
     output wire [7:0] video_r,
     output wire [7:0] video_g,
     output wire [7:0] video_b,
+
+    output wire is_vertical,
 
     // Audio
     output wire [15:0] audio_l,
@@ -163,7 +177,7 @@ module wonderswan (
   wire [15:0] Swan_AUDIO_L;
   wire [15:0] Swan_AUDIO_R;
 
-  wire reset = (~reset_n | cart_download);
+  wire reset = ~reset_n | cart_download | external_reset;
 
   reg paused;
   always_ff @(posedge clk_sys_36_864) begin
@@ -186,7 +200,7 @@ module wonderswan (
     end
   end
 
-  wire isColor = (status[40:39] == 0) ? (lastdata[4][8] | colorcart_downloaded) : (status[40:39] == 2'b10);
+  wire isColor = (configured_system == 0) ? (lastdata[4][8] | colorcart_downloaded) : (configured_system == 2'b10);
 
   reg [79:0] time_dout = 41'd0;
   wire [79:0] time_din;
@@ -245,7 +259,7 @@ module wonderswan (
       //settings
       .isColor    (isColor),
       .fastforward(fast_forward),
-      .turbo      (status[9]),
+      .turbo      (use_cpu_turbo),
 
       // joystick
       .KeyY1   (joystick_0[10]),
@@ -283,12 +297,12 @@ module wonderswan (
       .SAVE_out_be(ss_be),
       .SAVE_out_done(ss_ack),  // should be one cycle high when write is done or read value is valid
 
-      .rewind_on    (status[27]),
-      .rewind_active(status[27] & joystick_0[13])
+      .rewind_on    (use_rewind_capture),
+      .rewind_active(use_rewind_capture & joystick_0[13])
   );
 
-  assign audio_l = (fast_forward && status[25]) ? 16'd0 : Swan_AUDIO_L;
-  assign audio_r = (fast_forward && status[25]) ? 16'd0 : Swan_AUDIO_R;
+  assign audio_l = (fast_forward && use_fastforward_sound) ? 16'd0 : Swan_AUDIO_L;
+  assign audio_r = (fast_forward && use_fastforward_sound) ? 16'd0 : Swan_AUDIO_R;
 
   ////////////////////////////  VIDEO  ////////////////////////////////////
 
@@ -296,7 +310,7 @@ module wonderswan (
   wire [11:0] pixel_data;
   wire pixel_we;
 
-  wire buffervideo = status[5] | status[31];  // OSD option for buffer or flickerblend on
+  wire buffervideo = use_triple_buffer | configured_flickerblend[1]; // OSD option for buffer or flickerblend on;
 
   reg [11:0] vram1[32256];
   reg [11:0] vram2[32256];
@@ -331,9 +345,11 @@ module wonderswan (
 
     if (y > 150) begin
       syncpaused <= 0;
-    end else if (~fast_forward && status[24] && pixel_we && pixel_addr == 32255) begin
-      syncpaused <= 1;
     end
+    // We don't have "Sync core to Video" setting
+    // end else if (~fast_forward && status[24] && pixel_we && pixel_addr == 32255) begin
+    //   syncpaused <= 1;
+    // end
 
   end
 
@@ -376,15 +392,17 @@ module wonderswan (
   wire vertical;
   reg hs, vs, hbl, vbl, ce_pix;
   reg [7:0] r, g, b;
-  reg [1:0] videomode;
   reg [8:0] x, y;
   reg [2:0] div;
   reg signed [3:0] HShift;
   reg signed [3:0] VShift;
 
+  // TODO: This setting is not exposed for Pocket
+  wire use_refresh_rate_75hz = 0;
+
   always @(posedge clk_sys_36_864) begin
 
-    if (status[44]) begin
+    if (use_refresh_rate_75hz) begin
       if (div < 4) div <= div + 1'd1;
       else div <= 0;  // 36.864 mhz / 5
     end else begin
@@ -396,11 +414,11 @@ module wonderswan (
     if (!div) begin
       ce_pix <= 1;
 
-      if (status[31:30] == 0) begin  // flickerblend off
+      if (configured_flickerblend == 0) begin  // flickerblend off
         r <= {rgb_now[11:8], rgb_now[11:8]};
         g <= {rgb_now[7:4], rgb_now[7:4]};
         b <= {rgb_now[3:0], rgb_now[3:0]};
-      end else if (status[31:30] == 1) begin  // flickerblend 2 frames
+      end else if (configured_flickerblend == 1) begin  // flickerblend 2 frames
         r <= {r2_5, r2_5[4:2]};
         g <= {g2_5, g2_5[4:2]};
         b <= {b2_5, b2_5[4:2]};
@@ -410,17 +428,12 @@ module wonderswan (
         b <= b3_div24[7:0];
       end
 
-      if (videomode == 0) begin
-        if (x == 224 + 31) hbl <= 1;
-        if (y == 66 + $signed(VShift)) vbl <= 0;
-        if (y >= 66 + 144 + $signed(VShift)) vbl <= 1;
-      end else if (videomode == 1 || videomode == 2) begin
-        if (x == 144 + 72) hbl <= 1;
-        if (y == 25 + $signed(VShift)) vbl <= 0;
-        if (y >= 25 + 224 + $signed(VShift)) vbl <= 1;
-      end
+      // Rotation is handled by the Pocket scaler
+      if (x == 224 + 31) hbl <= 1;
+      if (y == 66 + $signed(VShift)) vbl <= 0;
+      if (y >= 66 + 144 + $signed(VShift)) vbl <= 1;
 
-      if ((videomode == 0 && x == 31) || (videomode > 0 && x == 72)) begin
+      if (x == 31) begin
         hbl <= 0;
       end
 
@@ -436,32 +449,18 @@ module wonderswan (
 
     if (ce_pix) begin
 
-      if (videomode == 0) begin
-        if (vbl) begin
-          if (status[12]) px_addr <= 32255;
-          else px_addr <= 0;
-        end else begin
-          if (!hbl) begin
-            if (status[12]) px_addr <= px_addr - 1'd1;
-            else px_addr <= px_addr + 1'd1;
-          end
-        end
-      end else if (videomode == 1) begin
+      if (vbl) begin
+        if (use_flip_horizontal) px_addr <= 32255;
+        else px_addr <= 0;
+      end else begin
         if (!hbl) begin
-          px_addr <= px_addr - 8'd224;
-        end else begin
-          px_addr <= (8'd143 * 8'd224) + (y - 6'd25 - $signed(VShift));
-        end
-      end else if (videomode == 2) begin
-        if (!hbl) begin
-          px_addr <= px_addr + 8'd224;
-        end else begin
-          px_addr <= 8'd248 - y + $signed(VShift);
+          if (use_flip_horizontal) px_addr <= px_addr - 1'd1;
+          else px_addr <= px_addr + 1'd1;
         end
       end
 
       x <= x + 1'd1;
-      if ((x >= 400 && ~status[44]) || (x >= 378 && status[44])) begin
+      if ((x >= 400 && ~use_refresh_rate_75hz) || (x >= 378 && use_refresh_rate_75hz)) begin
         x <= 0;
         if (~&y) y <= y + 1'd1;
         if (y >= 257) begin
@@ -469,16 +468,16 @@ module wonderswan (
           buffercnt_read <= buffercnt_readnext;
           buffercnt_last <= buffercnt_read;
 
-          HShift         <= status[19:16];
-          VShift         <= status[23:20];
-          if (status[11:10] == 0) videomode = 0;  // 224*144
-          if (status[11:10] == 1) videomode = 1;  // 144*224
-          if (status[11:10] == 2) videomode = 2;  // 144*224, 180 degree rotated
-          if (status[11:10] == 3) videomode = vertical ? 2'd2 : 2'd0;  // autorotate
+          // HShift         <= status[19:16];
+          // VShift         <= status[23:20];
+          HShift <= 0;
+          VShift <= 0;
         end
       end
     end
   end
+
+  assign is_vertical = vertical;
 
   assign video_r = r;
   assign video_g = g;

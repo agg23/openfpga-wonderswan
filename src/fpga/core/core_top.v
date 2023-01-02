@@ -325,6 +325,47 @@ module core_top (
     endcase
   end
 
+  always @(posedge clk_74a) begin
+    if (reset_delay > 0) begin
+      reset_delay <= reset_delay - 1;
+    end
+
+    if (bridge_wr) begin
+      casex (bridge_addr)
+        32'h050: begin
+          reset_delay <= 32'h100000;
+        end
+
+        32'h100: begin
+          configured_system <= bridge_wr_data[1:0];
+        end
+        32'h110: begin
+          use_cpu_turbo <= bridge_wr_data[0];
+        end
+        32'h114: begin
+          use_rewind_capture <= bridge_wr_data[0];
+        end
+
+        32'h200: begin
+          use_triple_buffer <= bridge_wr_data[0];
+        end
+        32'h204: begin
+          configured_flickerblend <= bridge_wr_data[1:0];
+        end
+        32'h208: begin
+          configured_orientation <= bridge_wr_data[1:0];
+        end
+        32'h20C: begin
+          use_flip_horizontal <= bridge_wr_data[0];
+        end
+
+        32'h300: begin
+          use_fastforward_sound <= bridge_wr_data[0];
+        end
+      endcase
+    end
+  end
+
 
   //
   // host/target command handler
@@ -475,24 +516,83 @@ module core_top (
   wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
   wire [1:0] bios_download = {color_bios, bw_bios};
 
-  always @(posedge clk_74a or negedge pll_core_locked) begin
-    if (~pll_core_locked) begin
-      datatable_addr <= 0;
-      datatable_data <= 0;
-      datatable_wren <= 0;
-    end else begin
-      // Write sram size
-      datatable_wren <= 1;
-      datatable_data <= 32'h100_000;
-      // Data slot index 2, not id 2
-      datatable_addr <= 2 * 2 + 1;
-    end
-  end
+  // always @(posedge clk_74a or negedge pll_core_locked) begin
+  //   if (~pll_core_locked) begin
+  //     datatable_addr <= 0;
+  //     datatable_data <= 0;
+  //     datatable_wren <= 0;
+  //   end else begin
+  //     // Write sram size
+  //     datatable_wren <= 1;
+  //     datatable_data <= 32'h100_000;
+  //     // Data slot index 2, not id 2
+  //     datatable_addr <= 2 * 2 + 1;
+  //   end
+  // end
+
+  // Settings
+  reg [31:0] reset_delay = 0;
+  wire external_reset = reset_delay > 0;
+
+  reg [1:0] configured_system;
+
+  reg use_cpu_turbo;
+  reg use_rewind_capture;
+
+  reg use_triple_buffer;
+  reg [1:0] configured_flickerblend;
+  reg [1:0] configured_orientation;
+  reg use_flip_horizontal;
+
+  reg use_fastforward_sound;
+
+  // Synced settings
+  wire external_reset_s;
+
+  wire [1:0] configured_system_s;
+
+  wire use_cpu_turbo_s;
+  wire use_rewind_capture_s;
+
+  wire use_triple_buffer_s;
+  wire [1:0] configured_flickerblend_s;
+  wire [1:0] configured_orientation_s;
+  wire use_flip_horizontal_s;
+
+  wire use_fastforward_sound_s;
+
+  synch_3 #(
+      .WIDTH(12)
+  ) settings_s (
+      {
+        external_reset,
+        configured_system,
+        use_cpu_turbo,
+        use_rewind_capture,
+        use_triple_buffer,
+        configured_flickerblend,
+        configured_orientation,
+        use_flip_horizontal,
+        use_fastforward_sound
+      },
+      {
+        external_reset_s,
+        configured_system_s,
+        use_cpu_turbo_s,
+        use_rewind_capture_s,
+        use_triple_buffer_s,
+        configured_flickerblend_s,
+        configured_orientation_s,
+        use_flip_horizontal_s,
+        use_fastforward_sound_s
+      },
+      clk_sys_36_864
+  );
 
   wire [15:0] cont1_key_s;
 
   synch_3 #(
-      .WIDTH(32)
+      .WIDTH(16)
   ) cont1_s (
       cont1_key,
       cont1_key_s,
@@ -505,6 +605,7 @@ module core_top (
 
       .reset_n(reset_n),
       .pll_core_locked(pll_core_locked),
+      .external_reset(external_reset_s),
 
       .ioctl_wr  (ioctl_wr),
       .ioctl_addr(ioctl_addr),
@@ -523,6 +624,17 @@ module core_top (
       .dpad_left(cont1_key_s[2]),
       .dpad_right(cont1_key_s[3]),
 
+      // Settings
+      .configured_system(configured_system_s),
+      .use_cpu_turbo(use_cpu_turbo_s),
+      .use_rewind_capture(use_rewind_capture_s),
+
+      .use_triple_buffer(use_triple_buffer_s),
+      .configured_flickerblend(configured_flickerblend_s),
+      .use_flip_horizontal(use_flip_horizontal_s),
+
+      .use_fastforward_sound(use_fastforward_sound_s),
+
       // SDRAM
       .dram_a(dram_a),
       .dram_ba(dram_ba),
@@ -534,18 +646,18 @@ module core_top (
       .dram_cas_n(dram_cas_n),
       .dram_we_n(dram_we_n),
 
-      .hblank (h_blank),
-      .vblank (v_blank),
-      .hsync  (video_hs_core),
-      .vsync  (video_vs_core),
+      .hblank(h_blank),
+      .vblank(v_blank),
+      .hsync(video_hs_core),
+      .vsync(video_vs_core),
       .video_r(vid_rgb_core[23:16]),
       .video_g(vid_rgb_core[15:8]),
       .video_b(vid_rgb_core[7:0]),
+      .is_vertical(is_vertical),
 
       .audio_l(audio_l),
       .audio_r(audio_r)
   );
-
 
   ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -555,6 +667,7 @@ module core_top (
   wire video_hs_core;
   wire video_vs_core;
   wire [23:0] vid_rgb_core;
+  wire is_vertical;
 
   reg video_de_reg;
   reg video_hs_reg;
@@ -569,11 +682,16 @@ module core_top (
   assign video_vs = video_vs_reg;
   assign video_hs = video_hs_reg;
 
-  wire de = ~(h_blank || v_blank);
-
   reg [2:0] hs_delay;
   reg hs_prev;
   reg vs_prev;
+  reg de_prev;
+
+  wire de = ~(h_blank || v_blank);
+  // If any vertical orientation, use second slot
+  wire video_orientation = configured_orientation_s == 0 ?  // Auto
+  is_vertical : configured_orientation_s == 2;  // Vertical
+  wire [23:0] video_slot_rgb = {10'b0, video_orientation, 10'b0, 3'b0};
 
   always @(posedge clk_vid_3_75) begin
     video_hs_reg  <= 0;
@@ -584,6 +702,8 @@ module core_top (
       video_de_reg  <= 1;
 
       video_rgb_reg <= vid_rgb_core;
+    end else if (de_prev && ~de) begin
+      video_rgb_reg <= video_slot_rgb;
     end
 
     if (hs_delay > 0) begin
@@ -603,8 +723,8 @@ module core_top (
     video_vs_reg <= ~vs_prev && video_vs_core;
     hs_prev <= video_hs_core;
     vs_prev <= video_vs_core;
+    de_prev <= de;
   end
-
 
   ///////////////////////////////////////////////
 

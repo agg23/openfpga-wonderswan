@@ -4,10 +4,153 @@
     "variables": [
       {
         "name": "Reset core",
-        "id": 1,
+        "id": 0,
         "type": "action",
         "enabled": true,
-        "address": "0x0",
+        "address": "0x50",
+        "value": 1
+      },
+      {
+        "name": "System",
+        "id": 10,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x100",
+        "defaultval": 0,
+        "options": [
+          {
+            "value": 0,
+            "name": "Auto"
+          },
+          {
+            "value": 1,
+            "name": "WonderSwan"
+          },
+          {
+            "value": 2,
+            "name": "WonderSwan Color"
+          },
+          {
+            "value": 3,
+            "name": "PocketChallenge v2"
+          }
+        ]
+      },
+      {
+        "name": "CPU Turbo",
+        "id": 14,
+        "type": "check",
+        "enabled": true,
+        "address": "0x110",
+        "persist": true,
+        "writeonly": true,
+        "defaultval": 0,
+        "value": 1
+      },
+      {
+        "name": "Rewind Capture",
+        "id": 15,
+        "type": "check",
+        "enabled": true,
+        "address": "0x114",
+        "persist": true,
+        "writeonly": true,
+        "defaultval": 0,
+        "value": 1
+      },
+      {
+        "name": "Video",
+        "id": 40,
+        "type": "action",
+        "enabled": false
+      },
+      {
+        "name": "Triple Buffer",
+        "id": 41,
+        "type": "check",
+        "enabled": true,
+        "address": "0x200",
+        "persist": true,
+        "writeonly": true,
+        "defaultval": 1,
+        "value": 1
+      },
+      {
+        "name": "Flickerblend",
+        "id": 42,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x204",
+        "defaultval": 0,
+        "options": [
+          {
+            "value": 0,
+            "name": "Off"
+          },
+          {
+            "value": 1,
+            "name": "2 Frames"
+          },
+          {
+            "value": 2,
+            "name": "3 Frames"
+          }
+        ]
+      },
+      {
+        "name": "Orientation",
+        "id": 43,
+        "type": "list",
+        "enabled": true,
+        "persist": true,
+        "writeonly": true,
+        "address": "0x208",
+        "defaultval": 0,
+        "options": [
+          {
+            "value": 0,
+            "name": "Auto"
+          },
+          {
+            "value": 1,
+            "name": "Horizontal"
+          },
+          {
+            "value": 2,
+            "name": "Vertical"
+          }
+        ]
+      },
+      {
+        "name": "Flip Horizontal",
+        "id": 44,
+        "type": "check",
+        "enabled": true,
+        "address": "0x20C",
+        "persist": true,
+        "writeonly": true,
+        "defaultval": 0,
+        "value": 1
+      },
+      {
+        "name": "Sound",
+        "id": 80,
+        "type": "action",
+        "enabled": false
+      },
+      {
+        "name": "Fast Forward",
+        "id": 81,
+        "type": "check",
+        "enabled": true,
+        "address": "0x300",
+        "persist": true,
+        "writeonly": true,
+        "defaultval": 1,
         "value": 1
       }
     ],
