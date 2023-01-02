@@ -332,6 +332,22 @@ module core_top (
 
     if (bridge_wr) begin
       casex (bridge_addr)
+        32'h0: begin
+          cart_download <= bridge_wr_data[0];
+        end
+        32'h4: begin
+          is_color_cart <= bridge_wr_data[0];
+        end
+        32'h8: begin
+          bw_bios_download <= bridge_wr_data[0];
+        end
+        32'hC: begin
+          color_bios_download <= bridge_wr_data[0];
+        end
+        32'h10: begin
+          save_download <= bridge_wr_data[0];
+        end
+
         32'h050: begin
           reset_delay <= 32'h100000;
         end
@@ -507,14 +523,21 @@ module core_top (
   wire [15:0] audio_l;
   wire [15:0] audio_r;
 
-  // TODO: Change determination to use CHIP32
-  wire bw_cart = ioctl_download && dataslot_requestwrite_id == 0;
-  wire color_cart = ioctl_download && dataslot_requestwrite_id == 1;
-  wire [1:0] cart_download = {color_cart, bw_cart};
+  reg cart_download = 0;
+  reg is_color_cart = 0;
 
-  wire bw_bios = ioctl_download && dataslot_requestwrite_id == 9;
-  wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
-  wire [1:0] bios_download = {color_bios, bw_bios};
+  reg bw_bios_download = 0;
+  reg color_bios_download = 0;
+
+  reg save_download = 0;
+
+  // wire bw_cart = ioctl_download && dataslot_requestwrite_id == 0;
+  // wire color_cart = ioctl_download && dataslot_requestwrite_id == 1;
+  // wire [1:0] cart_download = {color_cart, bw_cart};
+
+  // wire bw_bios = ioctl_download && dataslot_requestwrite_id == 9;
+  // wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
+  wire [1:0] bios_download = {color_bios_download, bw_bios_download};
 
   // always @(posedge clk_74a or negedge pll_core_locked) begin
   //   if (~pll_core_locked) begin
@@ -611,7 +634,7 @@ module core_top (
       .ioctl_addr(ioctl_addr),
       .ioctl_dout(ioctl_dout),
 
-      .ext_cart_download(cart_download),
+      .ext_cart_download(is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download}),
       .bios_download(bios_download),
 
       // Inputs
