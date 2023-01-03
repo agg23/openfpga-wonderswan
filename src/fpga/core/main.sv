@@ -65,7 +65,6 @@ module wonderswan (
 
   wire [63:0] status = 0;
   wire savepause = 0;
-  wire fast_forward = 0;
 
   wire [11:0] sd_lba = 0;
   wire  [7:0] sd_buff_addr;
@@ -80,6 +79,8 @@ module wonderswan (
   wire cart_wr;
   reg cart_ready = 0;
   reg ioctl_wr_1 = 0;
+
+  wire ioctl_download = cart_download || |bios_download;
 
   wire cart_download = |ext_cart_download;
   wire colorcart_download = ext_cart_download[1];
@@ -301,8 +302,8 @@ module wonderswan (
       .rewind_active(use_rewind_capture & joystick_0[13])
   );
 
-  assign audio_l = (fast_forward && use_fastforward_sound) ? 16'd0 : Swan_AUDIO_L;
-  assign audio_r = (fast_forward && use_fastforward_sound) ? 16'd0 : Swan_AUDIO_R;
+  assign audio_l = (fast_forward && ~use_fastforward_sound) ? 16'd0 : Swan_AUDIO_L;
+  assign audio_r = (fast_forward && ~use_fastforward_sound) ? 16'd0 : Swan_AUDIO_R;
 
   ////////////////////////////  VIDEO  ////////////////////////////////////
 
@@ -488,6 +489,41 @@ module wonderswan (
 
   assign vsync   = vs;
   assign vblank  = vbl;
+
+  ///////////////////////////// Fast Forward Latch /////////////////////////////////
+
+  reg fast_forward;
+  reg ff_latch;
+
+  wire fastforward = button_select && !ioctl_download;
+  wire ff_on;
+
+  always @(posedge clk_sys_36_864) begin : ffwd
+    reg last_ffw;
+    reg ff_was_held;
+    longint ff_count;
+
+    last_ffw <= fastforward;
+
+    if (fastforward)
+      ff_count <= ff_count + 1;
+
+    if (~last_ffw & fastforward) begin
+      ff_latch <= 0;
+      ff_count <= 0;
+    end
+
+    if ((last_ffw & ~fastforward)) begin // 32mhz clock, 0.2 seconds
+      ff_was_held <= 0;
+
+      if (ff_count < 6400000 && ~ff_was_held) begin
+        ff_was_held <= 1;
+        ff_latch <= 1;
+      end
+    end
+
+    fast_forward <= (fastforward | ff_latch);
+  end
 
   ///////////////////////////// savestates /////////////////////////////////
 
