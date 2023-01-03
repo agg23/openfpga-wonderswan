@@ -18,6 +18,8 @@ module wonderswan (
     // Inputs
     input wire button_a,
     input wire button_b,
+    input wire button_x,
+    input wire button_y,
     input wire button_start,
     input wire button_select,
     input wire dpad_up,
@@ -263,17 +265,17 @@ module wonderswan (
       .turbo      (use_cpu_turbo),
 
       // joystick
-      .KeyY1   (joystick_0[10]),
-      .KeyY2   (joystick_0[7]),
-      .KeyY3   (joystick_0[9]),
-      .KeyY4   (joystick_0[8]),
-      .KeyX1   (dpad_up),
-      .KeyX2   (dpad_right),
-      .KeyX3   (dpad_down),
-      .KeyX4   (dpad_left),
+      .KeyY1   (vertical && button_x), // Vert left
+      .KeyY2   (vertical && button_a), // Vert up
+      .KeyY3   (vertical && button_b), // Vert right
+      .KeyY4   (vertical && button_y), // Vert down
+      .KeyX1   (dpad_up ), // Horz up, vert left
+      .KeyX2   (dpad_right), // Horz right, vert up
+      .KeyX3   (dpad_down), // Horz down, vert right
+      .KeyX4   (dpad_left), // Horz left, vert down
       .KeyStart(button_start),
-      .KeyA    (button_a),
-      .KeyB    (button_b),
+      .KeyA    (~vertical && button_a),
+      .KeyB    (~vertical && button_b),
 
       // RTC
       // .RTC_timestampNew(RTC_time[32]),

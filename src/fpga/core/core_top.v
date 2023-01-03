@@ -640,6 +640,8 @@ module core_top (
       // Inputs
       .button_a(cont1_key_s[4]),
       .button_b(cont1_key_s[5]),
+      .button_x(cont1_key_s[6]),
+      .button_y(cont1_key_s[7]),
       .button_start(cont1_key_s[15]),
       .button_select(cont1_key_s[14]),
       .dpad_up(cont1_key_s[0]),
