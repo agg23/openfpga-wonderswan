@@ -300,8 +300,8 @@ module wonderswan (
       .SAVE_out_be(ss_be),
       .SAVE_out_done(ss_ack),  // should be one cycle high when write is done or read value is valid
 
-      .rewind_on    (use_rewind_capture),
-      .rewind_active(use_rewind_capture & joystick_0[13])
+      // .rewind_on    (use_rewind_capture),
+      // .rewind_active(use_rewind_capture & trigger_left)
   );
 
   assign audio_l = (fast_forward && ~use_fastforward_sound) ? 16'd0 : Swan_AUDIO_L;
@@ -528,13 +528,6 @@ module wonderswan (
   end
 
   ///////////////////////////// savestates /////////////////////////////////
-
-  wire [63:0] SaveStateBus_Din;
-  wire [ 9:0] SaveStateBus_Adr;
-  wire        SaveStateBus_wren;
-  wire        SaveStateBus_rst;
-  wire [63:0] SaveStateBus_Dout;
-  wire        savestate_load;
 
   wire [63:0] ss_dout, ss_din;
   wire [27:2] ss_addr;

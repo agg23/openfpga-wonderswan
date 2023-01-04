@@ -358,9 +358,9 @@ module core_top (
         32'h110: begin
           use_cpu_turbo <= bridge_wr_data[0];
         end
-        32'h114: begin
-          use_rewind_capture <= bridge_wr_data[0];
-        end
+        // 32'h114: begin
+        //   use_rewind_capture <= bridge_wr_data[0];
+        // end
 
         32'h200: begin
           use_triple_buffer <= bridge_wr_data[0];
@@ -560,7 +560,7 @@ module core_top (
   reg [1:0] configured_system;
 
   reg use_cpu_turbo;
-  reg use_rewind_capture;
+  // reg use_rewind_capture;
 
   reg use_triple_buffer;
   reg [1:0] configured_flickerblend;
@@ -575,7 +575,7 @@ module core_top (
   wire [1:0] configured_system_s;
 
   wire use_cpu_turbo_s;
-  wire use_rewind_capture_s;
+  // wire use_rewind_capture_s;
 
   wire use_triple_buffer_s;
   wire [1:0] configured_flickerblend_s;
@@ -585,13 +585,13 @@ module core_top (
   wire use_fastforward_sound_s;
 
   synch_3 #(
-      .WIDTH(12)
+      .WIDTH(11)
   ) settings_s (
       {
         external_reset,
         configured_system,
         use_cpu_turbo,
-        use_rewind_capture,
+        // use_rewind_capture,
         use_triple_buffer,
         configured_flickerblend,
         configured_orientation,
@@ -602,7 +602,7 @@ module core_top (
         external_reset_s,
         configured_system_s,
         use_cpu_turbo_s,
-        use_rewind_capture_s,
+        // use_rewind_capture_s,
         use_triple_buffer_s,
         configured_flickerblend_s,
         configured_orientation_s,
@@ -652,7 +652,7 @@ module core_top (
       // Settings
       .configured_system(configured_system_s),
       .use_cpu_turbo(use_cpu_turbo_s),
-      .use_rewind_capture(use_rewind_capture_s),
+      // .use_rewind_capture(use_rewind_capture_s),
 
       .use_triple_buffer(use_triple_buffer_s),
       .configured_flickerblend(configured_flickerblend_s),
