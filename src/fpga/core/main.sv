@@ -38,6 +38,15 @@ module wonderswan (
 
     input wire use_fastforward_sound,
 
+    // Saves
+    input wire save_download,
+    output wire [11:0] save_size,
+    input wire sd_buff_wr,
+    input wire sd_buff_rd,
+    input wire [20:0] sd_buff_addr,
+    output wire [15:0] sd_buff_din,
+    input wire [15:0] sd_buff_dout,
+
     // SDRAM
     output wire [12:0] dram_a,
     output wire [ 1:0] dram_ba,
@@ -65,22 +74,16 @@ module wonderswan (
     output wire [15:0] audio_r
 );
 
-  wire [63:0] status = 0;
+  wire                                                   [63:0] status = 0;
   wire savepause = 0;
 
-  wire [11:0] sd_lba = 0;
-  wire  [7:0] sd_buff_addr;
-  wire [15:0] sd_buff_dout;
-  wire [15:0] sd_buff_din;
-  wire        sd_buff_wr;
+  wire                                                   [13:0] joystick_0 = 0;
 
-  wire [13:0] joystick_0 = 0;
-
-  wire [15:0] cart_addr;
-  wire cart_rd;
-  wire cart_wr;
-  reg cart_ready = 0;
-  reg ioctl_wr_1 = 0;
+  wire                                                   [15:0]                 cart_addr;
+  wire                                                                          cart_rd;
+  wire                                                                          cart_wr;
+  reg                                                                           cart_ready = 0;
+  reg                                                                           ioctl_wr_1 = 0;
 
   wire ioctl_download = cart_download || |bios_download;
 
@@ -90,18 +93,17 @@ module wonderswan (
   // wire colorcart_download = ioctl_download && (filetype == 8'h01);
   // wire bios_download = ioctl_download && (filetype == 8'h00 || filetype == 8'h40);
 
-  wire sdram_ack;
+  wire                                                                          EXTRAM_doRefresh;
+  wire                                                                          EXTRAM_read;
+  wire                                                                          EXTRAM_write;
+  wire                                                   [24:0]                 EXTRAM_addr;
+  wire                                                   [15:0]                 EXTRAM_datawrite;
+  wire                                                   [15:0]                 EXTRAM_dataread;
+  wire                                                   [ 1:0]                 EXTRAM_be;
 
-  wire EXTRAM_doRefresh;
-  wire EXTRAM_read;
-  wire EXTRAM_write;
-  wire [24:0] EXTRAM_addr;
-  wire [15:0] EXTRAM_datawrite;
-  wire [15:0] EXTRAM_dataread;
-  wire [1:0] EXTRAM_be;
+  wire                                                   [15:0]                 sdram_din;
 
-  wire [15:0] sdr_bram_din;
-  wire sdr_bram_ack;
+  assign sd_buff_din = saveIsSRAM ? sdram_din : eeprom_din;
 
   sdram sdram (
       .init(~pll_core_locked),
@@ -116,12 +118,12 @@ module wonderswan (
       .ch1_ready(sdram_ack),
       // .ch1_dout (),
 
-      .ch2_addr ({4'b1000, sd_lba[11:0], bram_addr}),
-      .ch2_din  (bram_dout),
-      .ch2_dout (sdr_bram_din),
-      .ch2_req  (bram_req && saveIsSRAM),
-      .ch2_rnw  (~bk_loading || extra_data_addr),
-      .ch2_ready(sdr_bram_ack),
+      .ch2_addr({4'b1000, sd_buff_addr[20:1]}),
+      .ch2_din (sd_buff_dout),
+      .ch2_dout(sdram_din),
+      .ch2_req (saveIsSRAM && (sd_buff_rd || sd_buff_wr)),
+      .ch2_rnw (~sd_buff_wr),
+      // .ch2_ready(sdr_bram_ack),
 
       .ch3_addr(EXTRAM_addr[24:1]),
       .ch3_din (EXTRAM_datawrite),
@@ -237,11 +239,12 @@ module wonderswan (
 
       // eeprom
       .eepromWrite(eepromWrite),
-      .eeprom_addr({sd_lba[1:0], bram_addr}),
-      .eeprom_din (bram_dout),
+      .eeprom_addr(sd_buff_addr[20:1]),
+      .eeprom_din (sd_buff_dout),
       .eeprom_dout(eeprom_din),
-      .eeprom_req (bram_req && ~saveIsSRAM),
-      .eeprom_rnw (~bk_loading || extra_data_addr),
+      .eeprom_req (~saveIsSRAM && (sd_buff_rd || sd_buff_wr)),
+      // .eeprom_rnw (~save_download || extra_data_addr),
+      .eeprom_rnw (~sd_buff_wr),
 
       // bios
       .bios_wraddr (bios_wraddr),
@@ -265,14 +268,14 @@ module wonderswan (
       .turbo      (use_cpu_turbo),
 
       // joystick
-      .KeyY1   (vertical && button_x), // Vert left
-      .KeyY2   (vertical && button_a), // Vert up
-      .KeyY3   (vertical && button_b), // Vert right
-      .KeyY4   (vertical && button_y), // Vert down
-      .KeyX1   (dpad_up ), // Horz up, vert left
-      .KeyX2   (dpad_right), // Horz right, vert up
-      .KeyX3   (dpad_down), // Horz down, vert right
-      .KeyX4   (dpad_left), // Horz left, vert down
+      .KeyY1   (vertical && button_x),   // Vert left
+      .KeyY2   (vertical && button_a),   // Vert up
+      .KeyY3   (vertical && button_b),   // Vert right
+      .KeyY4   (vertical && button_y),   // Vert down
+      .KeyX1   (dpad_up),                // Horz up, vert left
+      .KeyX2   (dpad_right),             // Horz right, vert up
+      .KeyX3   (dpad_down),              // Horz down, vert right
+      .KeyX4   (dpad_left),              // Horz left, vert down
       .KeyStart(button_start),
       .KeyA    (~vertical && button_a),
       .KeyB    (~vertical && button_b),
@@ -473,8 +476,8 @@ module wonderswan (
 
           // HShift         <= status[19:16];
           // VShift         <= status[23:20];
-          HShift <= 0;
-          VShift <= 0;
+          HShift         <= 0;
+          VShift         <= 0;
         end
       end
     end
@@ -486,11 +489,11 @@ module wonderswan (
   assign video_g = g;
   assign video_b = b;
 
-  assign hsync   = hs;
-  assign hblank  = hbl;
+  assign hsync = hs;
+  assign hblank = hbl;
 
-  assign vsync   = vs;
-  assign vblank  = vbl;
+  assign vsync = vs;
+  assign vblank = vbl;
 
   ///////////////////////////// Fast Forward Latch /////////////////////////////////
 
@@ -507,15 +510,14 @@ module wonderswan (
 
     last_ffw <= fastforward;
 
-    if (fastforward)
-      ff_count <= ff_count + 1;
+    if (fastforward) ff_count <= ff_count + 1;
 
     if (~last_ffw & fastforward) begin
       ff_latch <= 0;
       ff_count <= 0;
     end
 
-    if ((last_ffw & ~fastforward)) begin // 32mhz clock, 0.2 seconds
+    if ((last_ffw & ~fastforward)) begin  // 32mhz clock, 0.2 seconds
       ff_was_held <= 0;
 
       if (ff_count < 6400000 && ~ff_was_held) begin
@@ -584,10 +586,6 @@ module wonderswan (
 
   wire eepromWrite;
 
-  reg bk_ena = 0;
-  reg bk_pending = 0;
-  reg bk_loading = 0;
-
   reg bk_record_rtc = 0;
 
   wire extra_data_addr = 0;
@@ -599,40 +597,28 @@ module wonderswan (
 
   wire saveIsSRAM = (ramtype == 8'h01) || (ramtype == 8'h02) || (ramtype == 8'h03) || (ramtype == 8'h04) || (ramtype == 8'h05);
 
-  // always @(posedge clk_sys_36_864) begin
-  // 	if (bk_write)      bk_pending <= 1;
-  // 	else if (bk_state) bk_pending <= 0;
-  // end
-  // reg use_img;
-  // reg [11:0] save_sz;
+  reg [11:0] save_sz;
 
-  // always @(posedge clk_sys_36_864) begin : size_block
-  // 	reg old_downloading;
+  assign save_size = save_sz;
 
-  // 	old_downloading <= cart_download;
-  // 	if(~old_downloading & cart_download) {use_img, save_sz} <= 0;
+  always @(posedge clk_sys_36_864) begin : size_block
+    reg old_downloading;
 
-  // 	if((~use_img && EXTRAM_write) || eepromWrite) begin
-  // 		if(ramtype == 8'h01) save_sz <= save_sz | 12'hF;
-  // 		if(ramtype == 8'h02) save_sz <= save_sz | 12'h3F;
-  // 		if(ramtype == 8'h03) save_sz <= save_sz | 12'hFF;
-  // 		if(ramtype == 8'h04) save_sz <= save_sz | 12'h1FF;
-  // 		if(ramtype == 8'h05) save_sz <= save_sz | 12'h3FF;
-  // 		if(ramtype == 8'h10) save_sz <= save_sz | 12'h003;
-  // 		if(ramtype == 8'h20) save_sz <= save_sz | 12'h003;
-  // 		if(ramtype == 8'h50) save_sz <= save_sz | 12'h003;
-  // 	end
+    old_downloading <= cart_download;
+    if (~old_downloading & cart_download) save_sz <= 0;
 
-  // 	if(img_mounted && img_size && !img_readonly) begin
-  // 		use_img <= 1;
-  // 		if (!(img_size[20:9] & (img_size[20:9] - 12'd1))) // Power of two
-  // 			save_sz <= img_size[20:9] - 1'd1;
-  // 		else                                             // Assume one extra sector of RTC data
-  // 			save_sz <= img_size[20:9] - 2'd2;
-  // 	end
-
-  // 	bk_ena <= |save_sz;
-  // end
+    if (EXTRAM_write || eepromWrite) begin
+      if (ramtype == 8'h01) save_sz <= 12'hF;
+      if (ramtype == 8'h02) save_sz <= 12'h3F;
+      if (ramtype == 8'h03) save_sz <= 12'hFF;
+      if (ramtype == 8'h04) save_sz <= 12'h1FF;
+      if (ramtype == 8'h05) save_sz <= 12'h3FF;
+      // These are EEPROM saves
+      if (ramtype == 8'h10) save_sz <= 12'h003;
+      if (ramtype == 8'h20) save_sz <= 12'h003;
+      if (ramtype == 8'h50) save_sz <= 12'h003;
+    end
+  end
 
   // reg  bk_state  = 0;
   // wire bk_save_a = OSD_STATUS & bk_autosave;
@@ -731,81 +717,12 @@ module wonderswan (
 
   // transfer bram
 
-  wire [127:0] time_din_h = {32'd0, time_din, "RT"};
-  wire [15:0] bram_dout;
-  wire [15:0] bram_din = saveIsSRAM ? sdr_bram_din : eeprom_din;
-  wire bram_ack = saveIsSRAM ? sdr_bram_ack : eeprom_ack;
-  assign sd_buff_din = extra_data_addr ? (time_din_h[{sd_buff_addr[2:0], 4'b0000} +: 16]) : bram_buff_out;
-  wire [15:0] bram_buff_out;
+  // wire [127:0] time_din_h = {32'd0, time_din, "RT"};
+  // wire [15:0] bram_dout;
+  // wire [15:0] bram_din = saveIsSRAM ? sdr_bram_din : eeprom_din;
+  // wire bram_ack = saveIsSRAM ? sdr_bram_ack : eeprom_ack;
+  // assign sd_buff_din = extra_data_addr ? (time_din_h[{sd_buff_addr[2:0], 4'b0000} +: 16]) : bram_buff_out;
+  // wire [15:0] bram_buff_out;
 
-  altsyncram altsyncram_component (
-      .address_a(bram_addr),
-      .address_b(sd_buff_addr),
-      .clock0(clk_mem_110_592),
-      .clock1(clk_sys_36_864),
-      .data_a(bram_din),
-      .data_b(sd_buff_dout),
-      .wren_a(~bk_loading & bram_ack),
-      .wren_b(sd_buff_wr && ~extra_data_addr),
-      .q_a(bram_dout),
-      .q_b(bram_buff_out),
-      .byteena_a(1'b1),
-      .byteena_b(1'b1),
-      .clocken0(1'b1),
-      .clocken1(1'b1),
-      .rden_a(1'b1),
-      .rden_b(1'b1)
-  );
-  defparam
-  	altsyncram_component.address_reg_b = "CLOCK1",
-  	altsyncram_component.clock_enable_input_a = "BYPASS",
-  	altsyncram_component.clock_enable_input_b = "BYPASS",
-  	altsyncram_component.clock_enable_output_a = "BYPASS",
-  	altsyncram_component.clock_enable_output_b = "BYPASS",
-  	altsyncram_component.indata_reg_b = "CLOCK1",
-  	altsyncram_component.intended_device_family = "Cyclone V",
-  	altsyncram_component.lpm_type = "altsyncram",
-  	altsyncram_component.numwords_a = 256,
-  	altsyncram_component.numwords_b = 256,
-  	altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
-  	altsyncram_component.outdata_aclr_a = "NONE",
-  	altsyncram_component.outdata_aclr_b = "NONE",
-  	altsyncram_component.outdata_reg_a = "UNREGISTERED",
-  	altsyncram_component.outdata_reg_b = "UNREGISTERED",
-  	altsyncram_component.power_up_uninitialized = "FALSE",
-  	altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
-  	altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ",
-  	altsyncram_component.widthad_a = 8,
-  	altsyncram_component.widthad_b = 8,
-  	altsyncram_component.width_a = 16,
-  	altsyncram_component.width_b = 16,
-  	altsyncram_component.width_byteena_a = 1,
-  	altsyncram_component.width_byteena_b = 1,
-  	altsyncram_component.wrcontrol_wraddress_reg_b = "CLOCK1";
-
-  reg [7:0] bram_addr;
-  reg bram_tx_start;
-  reg bram_tx_finish;
-  reg bram_req;
-  reg bram_state;
-
-  always @(posedge clk_mem_110_592) begin
-
-    bram_req <= 0;
-
-    if (extra_data_addr && bram_tx_start) begin
-      if (~&bram_addr) bram_tx_finish <= 1;
-    end else if (~bram_tx_start) {bram_addr, bram_state, bram_tx_finish} <= 0;
-    else if (~bram_tx_finish) begin
-      if (!bram_state) begin
-        bram_req   <= 1;
-        bram_state <= 1;
-      end else if (bram_ack) begin
-        bram_state <= 0;
-        if (~&bram_addr) bram_addr <= bram_addr + 1'd1;
-        else bram_tx_finish <= 1;
-      end
-    end
-  end
 
 endmodule

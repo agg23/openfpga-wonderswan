@@ -314,14 +314,16 @@ module core_top (
       default: begin
         bridge_rd_data <= 0;
       end
-      32'h10xxxxxx: begin
-        // example
-        // bridge_rd_data <= example_device_data;
-        bridge_rd_data <= 0;
-      end
+      // Bridge
       32'hF8xxxxxx: begin
         bridge_rd_data <= cmd_bridge_rd_data;
       end
+      32'h2xxxxxxx: begin
+        bridge_rd_data <= sd_read_data;
+      end
+      // 32'h4xxxxxxx: begin
+      //   bridge_rd_data <= save_state_bridge_read_data;
+      // end
     endcase
   end
 
@@ -520,6 +522,58 @@ module core_top (
       .write_data(ioctl_dout)
   );
 
+  wire [31:0] sd_read_data;
+
+  wire sd_buff_wr;
+  wire sd_buff_rd;
+
+  wire [20:0] sd_buff_addr_in;
+  wire [20:0] sd_buff_addr_out;
+
+  wire [20:0] sd_buff_addr = sd_buff_wr ? sd_buff_addr_in : sd_buff_addr_out;
+
+  wire [15:0] sd_buff_din;
+  wire [15:0] sd_buff_dout;
+
+  data_loader #(
+      .ADDRESS_MASK_UPPER_4(4'h2),
+      .ADDRESS_SIZE(21),
+      .OUTPUT_WORD_SIZE(2),
+      .WRITE_MEM_CLOCK_DELAY(7),
+      .WRITE_MEM_EN_CYCLE_LENGTH(3)
+  ) save_data_loader (
+      .clk_74a(clk_74a),
+      .clk_memory(clk_sys_36_864),
+
+      .bridge_wr(bridge_wr),
+      .bridge_endian_little(bridge_endian_little),
+      .bridge_addr(bridge_addr),
+      .bridge_wr_data(bridge_wr_data),
+
+      .write_en  (sd_buff_wr),
+      .write_addr(sd_buff_addr_in),
+      .write_data(sd_buff_dout)
+  );
+
+  data_unloader #(
+      .ADDRESS_MASK_UPPER_4(4'h2),
+      .ADDRESS_SIZE(21),
+      .INPUT_WORD_SIZE(2),
+      .READ_MEM_CLOCK_DELAY(7)
+  ) save_data_unloader (
+      .clk_74a(clk_74a),
+      .clk_memory(clk_sys_36_864),
+
+      .bridge_rd(bridge_rd),
+      .bridge_endian_little(bridge_endian_little),
+      .bridge_addr(bridge_addr),
+      .bridge_rd_data(sd_read_data),
+
+      .read_en  (sd_buff_rd),
+      .read_addr(sd_buff_addr_out),
+      .read_data(sd_buff_din)
+  );
+
   wire [15:0] audio_l;
   wire [15:0] audio_r;
 
@@ -539,19 +593,22 @@ module core_top (
   // wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
   wire [1:0] bios_download = {color_bios_download, bw_bios_download};
 
-  // always @(posedge clk_74a or negedge pll_core_locked) begin
-  //   if (~pll_core_locked) begin
-  //     datatable_addr <= 0;
-  //     datatable_data <= 0;
-  //     datatable_wren <= 0;
-  //   end else begin
-  //     // Write sram size
-  //     datatable_wren <= 1;
-  //     datatable_data <= 32'h100_000;
-  //     // Data slot index 2, not id 2
-  //     datatable_addr <= 2 * 2 + 1;
-  //   end
-  // end
+  wire [11:0] save_size;
+
+  always @(posedge clk_74a or negedge pll_core_locked) begin
+    if (~pll_core_locked) begin
+      datatable_addr <= 0;
+      datatable_data <= 0;
+      datatable_wren <= 0;
+    end else begin
+      // Write sram size
+      datatable_wren <= 1;
+      // save_size is the number of 512 byte blocks
+      datatable_data <= save_size * 512;
+      // Data slot index 3, not id 3
+      datatable_addr <= 2 * 3 + 1;
+    end
+  end
 
   // Settings
   reg [31:0] reset_delay = 0;
@@ -659,6 +716,15 @@ module core_top (
       .use_flip_horizontal(use_flip_horizontal_s),
 
       .use_fastforward_sound(use_fastforward_sound_s),
+
+      // Saves
+      .save_download(save_download),
+      .save_size(save_size),
+      .sd_buff_wr(sd_buff_wr),
+      .sd_buff_rd(sd_buff_rd),
+      .sd_buff_addr(sd_buff_addr),
+      .sd_buff_din(sd_buff_din),
+      .sd_buff_dout(sd_buff_dout),
 
       // SDRAM
       .dram_a(dram_a),
