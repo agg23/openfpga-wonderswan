@@ -39,7 +39,6 @@ module wonderswan (
     input wire use_fastforward_sound,
 
     // Saves
-    input wire save_download,
     output wire [11:0] save_size,
     input wire sd_buff_wr,
     input wire sd_buff_rd,
@@ -105,6 +104,62 @@ module wonderswan (
 
   assign sd_buff_din = saveIsSRAM ? sdram_din : eeprom_din;
 
+  reg prev_reset_n = 0;
+  reg prev_save_ram_ack = 0;
+  reg did_download_save = 0;
+
+  localparam CLEARING_INIT = 0;
+  localparam CLEARING_WRITE = 1;
+  localparam CLEARING_WAIT_ACK = 2;
+
+  reg [1:0] clearing_ram_state = CLEARING_INIT;
+  reg clearing_ram_write = 0;
+  reg [19:0] clearing_ram_addr = 0;
+
+  wire clearing_ram = clearing_ram_state != CLEARING_INIT;
+
+  always @(posedge clk_mem_110_592) begin
+    prev_reset_n <= reset_n;
+    prev_save_ram_ack <= save_ram_ack;
+
+    if (sd_buff_wr) begin
+      did_download_save <= 1;
+    end
+
+    case (clearing_ram_state)
+      CLEARING_INIT: begin
+        if (reset_n && ~prev_reset_n) begin
+          // Loading complete
+          if (~did_download_save && saveIsSRAM) begin
+            // No save was loaded, make sure to clear mem
+            clearing_ram_state <= CLEARING_WRITE;
+          end
+        end
+      end
+      CLEARING_WRITE: begin
+        clearing_ram_state <= CLEARING_WAIT_ACK;
+
+        clearing_ram_write <= 1;
+      end
+      CLEARING_WAIT_ACK: begin
+        if (save_ram_ack && ~prev_save_ram_ack) begin
+          // Write complete
+          clearing_ram_write <= 0;
+          clearing_ram_state <= CLEARING_WRITE;
+
+          clearing_ram_addr  <= clearing_ram_addr + 1;
+
+          if (&clearing_ram_addr) begin
+            // Finished writing
+            clearing_ram_state <= CLEARING_INIT;
+          end
+        end
+      end
+    endcase
+  end
+
+  wire save_ram_ack;
+
   sdram sdram (
       .init(~pll_core_locked),
       .clk (clk_mem_110_592),
@@ -118,12 +173,12 @@ module wonderswan (
       .ch1_ready(sdram_ack),
       // .ch1_dout (),
 
-      .ch2_addr({4'b1000, sd_buff_addr[20:1]}),
-      .ch2_din (sd_buff_dout),
-      .ch2_dout(sdram_din),
-      .ch2_req (saveIsSRAM && (sd_buff_rd || sd_buff_wr)),
-      .ch2_rnw (~sd_buff_wr),
-      // .ch2_ready(sdr_bram_ack),
+      .ch2_addr (clearing_ram ? {4'b1000, clearing_ram_addr} : {4'b1000, sd_buff_addr[20:1]}),
+      .ch2_din  (clearing_ram ? 16'b0 : sd_buff_dout),
+      .ch2_dout (sdram_din),
+      .ch2_req  ((saveIsSRAM && (sd_buff_rd || sd_buff_wr)) || clearing_ram_write),
+      .ch2_rnw  (~clearing_ram_write && ~sd_buff_wr),
+      .ch2_ready(save_ram_ack),
 
       .ch3_addr(EXTRAM_addr[24:1]),
       .ch3_din (EXTRAM_datawrite),
@@ -182,11 +237,10 @@ module wonderswan (
   wire [15:0] Swan_AUDIO_L;
   wire [15:0] Swan_AUDIO_R;
 
-  wire reset = ~reset_n | cart_download | external_reset;
+  wire reset = ~reset_n | cart_download | clearing_ram | external_reset;
 
   reg paused;
   always_ff @(posedge clk_sys_36_864) begin
-    // paused <= savepause || ((syncpaused || (status[26] && OSD_STATUS)) && ~status[27]); // no pause when rewind capture is on
     paused <= savepause || syncpaused;
   end
 
@@ -597,27 +651,18 @@ module wonderswan (
 
   wire saveIsSRAM = (ramtype == 8'h01) || (ramtype == 8'h02) || (ramtype == 8'h03) || (ramtype == 8'h04) || (ramtype == 8'h05);
 
-  reg [11:0] save_sz;
+  always_comb begin
+    save_size <= 0;
 
-  assign save_size = save_sz;
-
-  always @(posedge clk_sys_36_864) begin : size_block
-    reg old_downloading;
-
-    old_downloading <= cart_download;
-    if (~old_downloading & cart_download) save_sz <= 0;
-
-    if (EXTRAM_write || eepromWrite) begin
-      if (ramtype == 8'h01) save_sz <= 12'hF;
-      if (ramtype == 8'h02) save_sz <= 12'h3F;
-      if (ramtype == 8'h03) save_sz <= 12'hFF;
-      if (ramtype == 8'h04) save_sz <= 12'h1FF;
-      if (ramtype == 8'h05) save_sz <= 12'h3FF;
-      // These are EEPROM saves
-      if (ramtype == 8'h10) save_sz <= 12'h003;
-      if (ramtype == 8'h20) save_sz <= 12'h003;
-      if (ramtype == 8'h50) save_sz <= 12'h003;
-    end
+    if (ramtype == 8'h01) save_size <= 12'hF;
+    if (ramtype == 8'h02) save_size <= 12'h3F;
+    if (ramtype == 8'h03) save_size <= 12'hFF;
+    if (ramtype == 8'h04) save_size <= 12'h1FF;
+    if (ramtype == 8'h05) save_size <= 12'h3FF;
+    // These are EEPROM saves
+    if (ramtype == 8'h10) save_size <= 12'h003;
+    if (ramtype == 8'h20) save_size <= 12'h003;
+    if (ramtype == 8'h50) save_size <= 12'h003;
   end
 
   // reg  bk_state  = 0;

@@ -718,7 +718,6 @@ module core_top (
       .use_fastforward_sound(use_fastforward_sound_s),
 
       // Saves
-      .save_download(save_download),
       .save_size(save_size),
       .sd_buff_wr(sd_buff_wr),
       .sd_buff_rd(sd_buff_rd),
