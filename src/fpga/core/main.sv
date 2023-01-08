@@ -49,6 +49,20 @@ module wonderswan (
     output wire [15:0] sd_buff_din,
     input wire [15:0] sd_buff_dout,
 
+    // Save states
+    input wire ss_save,
+    input wire ss_load,
+
+    output wire [63:0] ss_din,
+    input wire [63:0] ss_dout,
+    output wire [25:0] ss_addr,
+    output wire ss_rnw,
+    output wire ss_req,
+    output wire [7:0] ss_be,
+    input wire ss_ack,
+
+    output wire ss_busy,
+
     // SDRAM
     output wire [12:0] dram_a,
     output wire [ 1:0] dram_ba,
@@ -353,10 +367,10 @@ module wonderswan (
       .RTC_savedtimeOut(time_din[0+:42]),
 
       // savestates
-      .increaseSSHeaderCount(!status[36]),
+      .increaseSSHeaderCount(1),
       .save_state           (ss_save),
       .load_state           (ss_load),
-      .savestate_number     (ss_slot),
+      .savestate_number     (0),
 
       .SAVE_out_Din(ss_din),  // data read from savestate
       .SAVE_out_Dout(ss_dout),  // data written to savestate
@@ -364,7 +378,8 @@ module wonderswan (
       .SAVE_out_rnw(ss_rnw),  // read = 1, write = 0
       .SAVE_out_ena(ss_req),  // one cycle high for each action
       .SAVE_out_be(ss_be),
-      .SAVE_out_done(ss_ack)  // should be one cycle high when write is done or read value is valid
+      .SAVE_out_done(ss_ack),  // should be one cycle high when write is done or read value is valid
+      .SAVE_out_busy(ss_busy)
 
       // .rewind_on    (use_rewind_capture),
       // .rewind_active(use_rewind_capture & trigger_left)
@@ -591,55 +606,6 @@ module wonderswan (
 
     fast_forward <= (fastforward | ff_latch);
   end
-
-  ///////////////////////////// savestates /////////////////////////////////
-
-  wire [63:0] ss_dout, ss_din;
-  wire [27:2] ss_addr;
-  wire [ 7:0] ss_be;
-  wire ss_rnw, ss_req, ss_ack;
-
-  // assign DDRAM_CLK = clk_sys;
-  // ddram ddram (
-  //     .*,
-
-  //     .ch1_addr({ss_addr, 1'b0}),
-  //     .ch1_din(ss_din),
-  //     .ch1_dout(ss_dout),
-  //     .ch1_req(ss_req),
-  //     .ch1_rnw(ss_rnw),
-  //     .ch1_be(ss_be),
-  //     .ch1_ready(ss_ack)
-  // );
-
-  // // saving with keyboard/OSD/gamepad
-  // wire [1:0] ss_slot;
-  // wire [7:0] ss_info;
-  // wire ss_save, ss_load, ss_info_req;
-  // wire statusUpdate;
-
-  // savestate_ui savestate_ui (
-  //     .clk          (clk_sys),
-  //     .ps2_key      (ps2_key[10:0]),
-  //     .allow_ss     (cart_ready),
-  //     .joySS        (joy0_unmod[12]),
-  //     .joyRight     (joy0_unmod[0]),
-  //     .joyLeft      (joy0_unmod[1]),
-  //     .joyDown      (joy0_unmod[2]),
-  //     .joyUp        (joy0_unmod[3]),
-  //     .joyStart     (joy0_unmod[6]),
-  //     .joyRewind    (joy0_unmod[13]),
-  //     .rewindEnable (status[27]),
-  //     .status_slot  (status[38:37]),
-  //     .OSD_saveload (status[29:28]),
-  //     .ss_save      (ss_save),
-  //     .ss_load      (ss_load),
-  //     .ss_info_req  (ss_info_req),
-  //     .ss_info      (ss_info),
-  //     .statusUpdate (statusUpdate),
-  //     .selected_slot(ss_slot)
-  // );
-  // defparam savestate_ui.INFO_TIMEOUT_BITS = 27;
 
   /////////////////////////  SRAM/EEPROM SAVE/LOAD  /////////////////////////////
   wire bk_load = status[41];

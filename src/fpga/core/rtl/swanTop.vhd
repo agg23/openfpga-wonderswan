@@ -96,6 +96,7 @@ entity SwanTop is
       SAVE_out_ena               : out std_logic;          
       SAVE_out_be                : out std_logic_vector(7 downto 0);
       SAVE_out_done              : in  std_logic;          
+      SAVE_out_busy             : out std_logic; 
       
       rewind_on                  : in  std_logic;
       rewind_active              : in  std_logic
@@ -250,6 +251,8 @@ architecture arch of SwanTop is
 -- synthesis translate_on
 
 begin
+
+   SAVE_out_busy <= savestate_busy;
    
    -- CE Generation
    --

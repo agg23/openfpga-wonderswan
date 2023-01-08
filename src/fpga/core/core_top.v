@@ -321,9 +321,9 @@ module core_top (
       32'h2xxxxxxx: begin
         bridge_rd_data <= sd_read_data;
       end
-      // 32'h4xxxxxxx: begin
-      //   bridge_rd_data <= save_state_bridge_read_data;
-      // end
+      32'h4xxxxxxx: begin
+        bridge_rd_data <= save_state_bridge_read_data;
+      end
     endcase
   end
 
@@ -411,10 +411,12 @@ module core_top (
 
   wire [31:0] rtc_epoch_seconds;
 
-  wire savestate_supported;
-  wire [31:0] savestate_addr;
-  wire [31:0] savestate_size;
-  wire [31:0] savestate_maxloadsize;
+  wire savestate_supported = 1;
+  wire [31:0] savestate_addr = 32'h40000000;
+  // TODO: Change size of save state based on memory size
+  wire [31:0] savestate_size = 32'h90_200;
+  // Add buffer of 0x1000 for extra data that we'll just discard on loading
+  wire [31:0] savestate_maxloadsize = savestate_size + 32'h1_000;
 
   wire savestate_start;
   wire savestate_start_ack;
@@ -494,6 +496,62 @@ module core_top (
       .datatable_wren(datatable_wren),
       .datatable_data(datatable_data),
       .datatable_q   (datatable_q)
+  );
+
+  // Save states
+  // Save state unloader
+  wire ss_busy;
+  wire [63:0] ss_din;
+  wire [63:0] ss_dout;
+  wire [25:0] ss_addr;
+  wire ss_rnw;
+  wire ss_req;
+  wire [7:0] ss_be;
+  wire ss_ack;
+
+  wire ss_save;
+  wire ss_load;
+
+  wire [31:0] save_state_bridge_read_data;
+
+  save_state_controller save_state_controller (
+      .clk_74a(clk_74a),
+      .clk_sys(clk_sys_36_864),
+
+      // APF
+      .bridge_wr(bridge_wr),
+      .bridge_rd(bridge_rd),
+      .bridge_endian_little(bridge_endian_little),
+      .bridge_addr(bridge_addr),
+      .bridge_wr_data(bridge_wr_data),
+      .save_state_bridge_read_data(save_state_bridge_read_data),
+
+      // APF Save States
+      .savestate_load(savestate_load),
+      .savestate_load_ack_s(savestate_load_ack),
+      .savestate_load_busy_s(savestate_load_busy),
+      .savestate_load_ok_s(savestate_load_ok),
+      .savestate_load_err_s(savestate_load_err),
+
+      .savestate_start(savestate_start),
+      .savestate_start_ack_s(savestate_start_ack),
+      .savestate_start_busy_s(savestate_start_busy),
+      .savestate_start_ok_s(savestate_start_ok),
+      .savestate_start_err_s(savestate_start_err),
+
+      // Save States Manager
+      .ss_save(ss_save),
+      .ss_load(ss_load),
+
+      .ss_din (ss_din),
+      .ss_dout(ss_dout),
+      .ss_addr(ss_addr),
+      .ss_rnw (ss_rnw),
+      .ss_req (ss_req),
+      .ss_be  (ss_be),
+      .ss_ack (ss_ack),
+
+      .ss_busy(ss_busy)
   );
 
   reg ioctl_download = 0;
@@ -733,6 +791,20 @@ module core_top (
       .sd_buff_addr(sd_buff_addr),
       .sd_buff_din(sd_buff_din),
       .sd_buff_dout(sd_buff_dout),
+
+      // Save states
+      .ss_save(ss_save),
+      .ss_load(ss_load),
+
+      .ss_busy(ss_busy),
+
+      .ss_din (ss_din),
+      .ss_dout(ss_dout),
+      .ss_addr(ss_addr),
+      .ss_rnw (ss_rnw),
+      .ss_req (ss_req),
+      .ss_be  (ss_be),
+      .ss_ack (ss_ack),
 
       // SDRAM
       .dram_a(dram_a),
