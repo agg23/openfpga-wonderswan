@@ -11,7 +11,7 @@ entity rtc is
       clk                  : in  std_logic;
       ce                   : in  std_logic;
       reset                : in  std_logic;
-      hasRTC               : in  std_logic;
+      hasRTC               : in  std_logic;                     -- Unused
       
       RTC_timestampNew     : in  std_logic;                     -- new current timestamp from system
       RTC_timestampIn      : in  std_logic_vector(31 downto 0); -- timestamp in seconds, current time

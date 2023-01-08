@@ -409,6 +409,8 @@ module core_top (
 
   wire dataslot_allcomplete;
 
+  wire [31:0] rtc_epoch_seconds;
+
   wire savestate_supported;
   wire [31:0] savestate_addr;
   wire [31:0] savestate_size;
@@ -466,6 +468,8 @@ module core_top (
       .dataslot_requestwrite_ok (dataslot_requestwrite_ok),
 
       .dataslot_allcomplete(dataslot_allcomplete),
+
+      .rtc_epoch_seconds(rtc_epoch_seconds),
 
       .savestate_supported  (savestate_supported),
       .savestate_addr       (savestate_addr),
@@ -594,6 +598,7 @@ module core_top (
   wire [1:0] bios_download = {color_bios_download, bw_bios_download};
 
   wire [11:0] save_size;
+  wire has_rtc;
 
   always @(posedge clk_74a or negedge pll_core_locked) begin
     if (~pll_core_locked) begin
@@ -604,7 +609,8 @@ module core_top (
       // Write sram size
       datatable_wren <= 1;
       // save_size is the number of 512 byte blocks
-      datatable_data <= save_size * 512;
+      // has_rtc indicates an additional 6 words (always enabled)
+      datatable_data <= save_size * 512 + (has_rtc ? 6 * 2 : 0);
       // Data slot index 3, not id 3
       datatable_addr <= 2 * 3 + 1;
     end
@@ -694,6 +700,8 @@ module core_top (
       .ext_cart_download(is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download}),
       .bios_download(bios_download),
 
+      .rtc_epoch_seconds(rtc_epoch_seconds),
+
       // Inputs
       .button_a(cont1_key_s[4]),
       .button_b(cont1_key_s[5]),
@@ -719,6 +727,7 @@ module core_top (
 
       // Saves
       .save_size(save_size),
+      .has_rtc(has_rtc),
       .sd_buff_wr(sd_buff_wr),
       .sd_buff_rd(sd_buff_rd),
       .sd_buff_addr(sd_buff_addr),

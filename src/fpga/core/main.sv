@@ -15,6 +15,8 @@ module wonderswan (
     // 1 for B&W bios, 2 for color bios
     input wire [ 1:0] bios_download,
 
+    input wire [31:0] rtc_epoch_seconds,
+
     // Inputs
     input wire button_a,
     input wire button_b,
@@ -40,6 +42,7 @@ module wonderswan (
 
     // Saves
     output wire [11:0] save_size,
+    output wire has_rtc,
     input wire sd_buff_wr,
     input wire sd_buff_rd,
     input wire [20:0] sd_buff_addr,
@@ -102,7 +105,7 @@ module wonderswan (
 
   wire                                                   [15:0]                 sdram_din;
 
-  assign sd_buff_din = saveIsSRAM ? sdram_din : eeprom_din;
+  assign sd_buff_din = extra_data_addr ? sd_buff_din_time : saveIsSRAM ? sdram_din : eeprom_din;
 
   reg prev_reset_n = 0;
   reg prev_save_ram_ack = 0;
@@ -261,7 +264,7 @@ module wonderswan (
 
   wire isColor = (configured_system == 0) ? (lastdata[4][8] | colorcart_downloaded) : (configured_system == 2'b10);
 
-  reg [79:0] time_dout = 41'd0;
+  reg [79:0] time_dout = 80'd0;
   wire [79:0] time_din;
   assign time_din[42+32+:80-(42+32)] = '0;
   reg                                                         RTC_load = 0;
@@ -270,6 +273,12 @@ module wonderswan (
 
   wire                    [15:0]                              eeprom_din;
   wire eeprom_ack = 1'b1;
+
+  reg                     [31:0]                              prev_rtc_epoch_seconds = 0;
+
+  always @(posedge clk_sys_36_864) begin
+    prev_rtc_epoch_seconds <= rtc_epoch_seconds;
+  end
 
   SwanTop SwanTop (
       .clk     (clk_sys_36_864),
@@ -287,9 +296,9 @@ module wonderswan (
       .EXTRAM_dataread (EXTRAM_dataread),
 
       .maskAddr(mask_addr[23:0]),
-      .romtype (lastdata[2][7:0]),
-      .ramtype (ramtype),
-      .hasRTC  (lastdata[1][8]),
+      .romtype(lastdata[2][7:0]),
+      .ramtype(ramtype),
+      .hasRTC(has_rtc),  // Unused
 
       // eeprom
       .eepromWrite(eepromWrite),
@@ -335,13 +344,13 @@ module wonderswan (
       .KeyB    (~vertical && button_b),
 
       // RTC
-      // .RTC_timestampNew(RTC_time[32]),
-      // .RTC_timestampIn(RTC_time[31:0]),
-      // .RTC_timestampSaved(time_dout[42+:32]),
-      // .RTC_savedtimeIn(time_dout[0+:42]),
-      // .RTC_saveLoaded(RTC_load),
-      // .RTC_timestampOut(time_din[42+:32]),
-      // .RTC_savedtimeOut(time_din[0+:42]),
+      .RTC_timestampNew(rtc_epoch_seconds != prev_rtc_epoch_seconds),
+      .RTC_timestampIn(rtc_epoch_seconds),
+      .RTC_timestampSaved(time_dout[42+:32]),
+      .RTC_savedtimeIn(time_dout[0+:42]),
+      .RTC_saveLoaded(RTC_load),
+      .RTC_timestampOut(time_din[42+:32]),
+      .RTC_savedtimeOut(time_din[0+:42]),
 
       // savestates
       .increaseSSHeaderCount(!status[36]),
@@ -355,7 +364,7 @@ module wonderswan (
       .SAVE_out_rnw(ss_rnw),  // read = 1, write = 0
       .SAVE_out_ena(ss_req),  // one cycle high for each action
       .SAVE_out_be(ss_be),
-      .SAVE_out_done(ss_ack),  // should be one cycle high when write is done or read value is valid
+      .SAVE_out_done(ss_ack)  // should be one cycle high when write is done or read value is valid
 
       // .rewind_on    (use_rewind_capture),
       // .rewind_active(use_rewind_capture & trigger_left)
@@ -641,133 +650,69 @@ module wonderswan (
   wire eepromWrite;
 
   reg bk_record_rtc = 0;
+  reg did_receive_sys_rtc = 0;
+  reg is_save_rtc_ready = 0;
 
-  wire extra_data_addr = 0;
-  // wire extra_data_addr = sd_lba[11:0] > save_sz;
+  wire extra_data_addr = sd_buff_addr >= (save_size * 512);
 
   // wire savepause = bk_state;
 
-  wire has_rtc = 1'b1;
+  // assign has_rtc = lastdata[1][8];
+  assign has_rtc = 1'b1;
 
   wire saveIsSRAM = (ramtype == 8'h01) || (ramtype == 8'h02) || (ramtype == 8'h03) || (ramtype == 8'h04) || (ramtype == 8'h05);
 
   always_comb begin
     save_size <= 0;
 
-    if (ramtype == 8'h01) save_size <= 12'hF;
-    if (ramtype == 8'h02) save_size <= 12'h3F;
-    if (ramtype == 8'h03) save_size <= 12'hFF;
-    if (ramtype == 8'h04) save_size <= 12'h1FF;
-    if (ramtype == 8'h05) save_size <= 12'h3FF;
+    if (ramtype == 8'h01) save_size <= 12'h10;
+    if (ramtype == 8'h02) save_size <= 12'h40;
+    if (ramtype == 8'h03) save_size <= 12'h100;
+    if (ramtype == 8'h04) save_size <= 12'h200;
+    if (ramtype == 8'h05) save_size <= 12'h400;
     // These are EEPROM saves
-    if (ramtype == 8'h10) save_size <= 12'h003;
-    if (ramtype == 8'h20) save_size <= 12'h003;
-    if (ramtype == 8'h50) save_size <= 12'h003;
+    if (ramtype == 8'h10) save_size <= 12'h004;
+    if (ramtype == 8'h20) save_size <= 12'h004;
+    if (ramtype == 8'h50) save_size <= 12'h004;
   end
 
-  // reg  bk_state  = 0;
-  // wire bk_save_a = OSD_STATUS & bk_autosave;
+  always @(posedge clk_sys_36_864) begin
+    if (rtc_epoch_seconds != 0) begin
+      // RTC received
+      did_receive_sys_rtc <= 1;
+    end
 
-  // reg [1:0] bk_state_int;
-  // reg [3:0] bk_wait; 
+    if (did_receive_sys_rtc && is_save_rtc_ready) begin
+      // Loaded save RTC, but couldn't send it since sys RTC hadn't yet been received
+      // We can mark the save RTC loaded now
+      RTC_load <= 1;
+    end
 
-  // always @(posedge clk_sys) begin
-  // 	reg old_load = 0, old_save = 0, old_save_a = 0, old_ack;
+    if (extra_data_addr) begin
+      // First byte of RTC
+      if (sd_buff_addr[8:0] == 0 && sd_buff_wr && sd_buff_dout == "RT") begin
+        bk_record_rtc <= 1;
+        RTC_load <= 0;
+      end
+    end
 
-  // 	old_load   <= bk_load;
-  // 	old_save   <= bk_save;
-  // 	old_save_a <= bk_save_a;
-  // 	old_ack    <= sd_ack;
+    if (bk_record_rtc) begin
+      if (sd_buff_addr[8:1] < 6 && sd_buff_addr[8:1] >= 1) begin
+        // Word addressing (3:1)
+        // Skip first word of row ("RT")
+        time_dout[{sd_buff_addr[3:1]-3'd1, 4'b0000}+:16] <= sd_buff_dout;
+      end
 
-  // 	if(~old_ack & sd_ack) {sd_rd, sd_wr} <= 0;
+      if (sd_buff_addr[8:1] == 5) begin
+        // RTC_load <= 1;
+        is_save_rtc_ready <= 1;
+        bk_record_rtc <= 0;
+      end
+    end
+  end
 
-  // 	if(!bk_state) begin
-  // 		bram_tx_start <= 0;
-  // 		bk_state_int  <= 0;
-  // 		sd_lba        <= 0;
-  //       bk_wait       <= 15;
-  // 		time_dout     <= {5'd0, RTC_time, 42'd0};
-  // 		bk_loading    <= 0;
-  // 		if(bk_ena & ((~old_load & bk_load) | (~old_save & bk_save) | (~old_save_a & bk_save_a & bk_pending) | (cart_download & img_mounted))) begin
-  // 			bk_state <= 1;
-  // 			bk_loading <= bk_load | img_mounted;
-  // 		end
-  // 	end 
-  //    else if (bk_wait > 0) begin 
-  //       bk_wait <= bk_wait - 1'd1;
-  //    end 
-  //    else if(bk_loading) begin
-  // 		case(bk_state_int)
-  // 			0: begin
-  // 					sd_rd <= 1;
-  // 					bk_state_int <= 1;
-  // 				end
-  // 			1: if(old_ack & ~sd_ack) begin
-  // 					bram_tx_start <= 1;
-  // 					bk_state_int <= 2;
-  // 				end
-  // 			2: if(bram_tx_finish) begin
-  // 					bram_tx_start <= 0;
-  // 					bk_state_int <= 0;
-  // 					sd_lba <= sd_lba + 1'd1;
-
-  // 					// always read max possible size
-  // 					if(sd_lba[11:0] == 12'h400) begin
-  // 						bk_record_rtc <= 0;
-  // 						bk_state <= 0;
-  // 						RTC_load <= 0;
-  // 					end
-  // 				end
-  // 		endcase
-
-  // 		if (extra_data_addr) begin
-  // 			if (~|sd_buff_addr && sd_buff_wr && sd_buff_dout == "RT") begin
-  // 				bk_record_rtc <= 1;
-  // 				RTC_load <= 0;
-  // 			end
-  // 		end
-
-  // 		if (bk_record_rtc) begin
-  // 			if (sd_buff_addr < 6 && sd_buff_addr >= 1)
-  // 				time_dout[{sd_buff_addr[2:0] - 3'd1, 4'b0000} +: 16] <= sd_buff_dout;
-
-  // 			if (sd_buff_addr > 5)
-  // 				RTC_load <= 1;
-
-  // 			if (&sd_buff_addr)
-  // 				bk_record_rtc <= 0;
-  // 		end
-  // 	end
-  // 	else begin
-  // 		case(bk_state_int)
-  // 			0: begin
-  // 					bram_tx_start <= 1;
-  // 					bk_state_int <= 1;
-  // 				end
-  // 			1: if(bram_tx_finish) begin
-  // 					bram_tx_start <= 0;
-  // 					sd_wr <= 1;
-  // 					bk_state_int <= 2;
-  // 				end
-  // 			2: if(old_ack & ~sd_ack) begin
-  // 					bk_state_int <= 0;
-  // 					sd_lba <= sd_lba + 1'd1;
-
-  // 					if (sd_lba[11:0] == {1'b0, save_sz} + (has_rtc ? 12'd1 : 12'd0))
-  // 						bk_state <= 0;
-  // 				end
-  // 		endcase
-  // 	end
-  // end
-
-  // transfer bram
-
-  // wire [127:0] time_din_h = {32'd0, time_din, "RT"};
-  // wire [15:0] bram_dout;
-  // wire [15:0] bram_din = saveIsSRAM ? sdr_bram_din : eeprom_din;
-  // wire bram_ack = saveIsSRAM ? sdr_bram_ack : eeprom_ack;
-  // assign sd_buff_din = extra_data_addr ? (time_din_h[{sd_buff_addr[2:0], 4'b0000} +: 16]) : bram_buff_out;
-  // wire [15:0] bram_buff_out;
-
+  wire [127:0] time_din_h = {32'd0, time_din, "RT"};
+  // Word addressing (3:1)
+  wire [ 15:0] sd_buff_din_time = time_din_h[{sd_buff_addr[3:1], 4'b0000}+:16];
 
 endmodule
