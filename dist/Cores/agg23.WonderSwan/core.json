@@ -4,11 +4,11 @@
     "metadata": {
       "platform_ids": ["wonderswan"],
       "shortname": "WonderSwan",
-      "description": "WonderSwan Description",
+      "description": "WonderSwan and WonderSwan Color by Bandai",
       "author": "agg23",
       "url": "https://github.com/agg23/openfpga-wonderswan",
       "version": "0.1.0",
-      "date_release": "2022-10-10"
+      "date_release": "2023-01-08"
     },
     "framework": {
       "target_product": "Analogue Pocket",
