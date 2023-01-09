@@ -51,7 +51,7 @@ ld r1,#rom_dataslot // populate data slot
 ld r2,#rambuf // get ram buf position
 getext r1,r2
 ld r1,#ext_wsc
-test r2,r1
+test r1,r2
 jp z,set_wsc // Set wsc
 
 dont_set_wsc:
