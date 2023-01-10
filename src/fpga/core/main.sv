@@ -24,6 +24,8 @@ module wonderswan (
     input wire button_b,
     input wire button_x,
     input wire button_y,
+    input wire button_trig_l,
+    input wire button_trig_r,
     input wire button_start,
     input wire button_select,
     input wire dpad_up,
@@ -351,17 +353,17 @@ module wonderswan (
       .turbo      (use_cpu_turbo),
 
       // joystick
-      .KeyY1   (vertical && button_x),   // Vert left
-      .KeyY2   (vertical && button_a),   // Vert up
-      .KeyY3   (vertical && button_b),   // Vert right
-      .KeyY4   (vertical && button_y),   // Vert down
-      .KeyX1   (dpad_up),                // Horz up, vert left
-      .KeyX2   (dpad_right),             // Horz right, vert up
-      .KeyX3   (dpad_down),              // Horz down, vert right
-      .KeyX4   (dpad_left),              // Horz left, vert down
+      .KeyY1   (vertical ? button_x : button_trig_l),   // Vert left
+      .KeyY2   (vertical ? button_a : button_trig_r),   // Vert up
+      .KeyY3   (vertical ? button_b : button_x),        // Vert right
+      .KeyY4   (vertical ? button_y : button_y),        // Vert down
+      .KeyX1   (dpad_up),                               // Horz up, vert left
+      .KeyX2   (dpad_right),                            // Horz right, vert up
+      .KeyX3   (dpad_down),                             // Horz down, vert right
+      .KeyX4   (dpad_left),                             // Horz left, vert down
       .KeyStart(button_start),
-      .KeyA    (~vertical && button_a),
-      .KeyB    (~vertical && button_b),
+      .KeyA    (~vertical ? button_a : button_trig_l),
+      .KeyB    (~vertical ? button_b : button_trig_r),
 
       // RTC
       .RTC_timestampNew(rtc_epoch_seconds != prev_rtc_epoch_seconds),

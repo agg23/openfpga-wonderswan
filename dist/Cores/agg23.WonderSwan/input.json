@@ -17,13 +17,23 @@
           },
           {
             "id": 2,
-            "name": "Vert Y1",
+            "name": "Horz Y3/Vert Y1",
             "key": "pad_btn_x"
           },
           {
             "id": 3,
-            "name": "Vert Y4",
+            "name": "Horz Y4/Vert Y4",
             "key": "pad_btn_y"
+          },
+          {
+            "id": 10,
+            "name": "Horz Y1/Vert A",
+            "key": "pad_trig_l"
+          },
+          {
+            "id": 11,
+            "name": "Horz Y2/Vert B",
+            "key": "pad_trig_r"
           },
           {
             "id": 20,
