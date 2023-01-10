@@ -42,7 +42,10 @@ module data_loader #(
 
     // Word size in number of bytes. Can either be 1 (output 8 bits), or 2 (output 16 bits)
     // Component will assert this value is within the valid range
-    parameter OUTPUT_WORD_SIZE = 1
+    parameter OUTPUT_WORD_SIZE = 1,
+
+    // If 1, will finish write when write_complete goes high
+    parameter USE_WRITE_COMPLETE = 0
 ) (
     input wire clk_74a,
     input wire clk_memory,
@@ -51,6 +54,10 @@ module data_loader #(
     input wire bridge_endian_little,
     input wire [31:0] bridge_addr,
     input wire [31:0] bridge_wr_data,
+
+    // The write has been received by the memory
+    // Synced to memory clock
+    input wire write_complete,
 
     // These outputs are synced to the memory clock
     output reg write_en = 0,
@@ -157,6 +164,7 @@ module data_loader #(
 
   localparam READ_DELAY = 1;
   localparam READ_WRITE = 2;
+  localparam READ_WAIT_ACK = 3;
   localparam READ_WRITE_EN_CYCLE_OFF = READ_WRITE + WRITE_MEM_EN_CYCLE_LENGTH;
   localparam READ_WRITE_END_DEFAULT = WRITE_MEM_CLOCK_DELAY - 1;
   // Must use max to prevent READ_WRITE_END from being the same as READ_WRITE_EN_CYCLE_OFF
@@ -189,18 +197,35 @@ module data_loader #(
 
         read_req   <= 0;
       end
-      READ_WRITE_EN_CYCLE_OFF: begin
-        write_en <= 0;
+    endcase
 
-        if (!HAS_DELAY) begin
-          // No extra delay, immediately go back to start
+    if (USE_WRITE_COMPLETE) begin
+      case (read_state)
+        READ_WAIT_ACK: begin
+          read_state <= READ_WAIT_ACK;
+
+          if (write_complete) begin
+            write_en   <= 0;
+
+            read_state <= 0;
+          end
+        end
+      endcase
+    end else begin
+      case (read_state)
+        READ_WRITE_EN_CYCLE_OFF: begin
+          write_en <= 0;
+
+          if (!HAS_DELAY) begin
+            // No extra delay, immediately go back to start
+            read_state <= 0;
+          end
+        end
+        READ_WRITE_END: begin
           read_state <= 0;
         end
-      end
-      READ_WRITE_END: begin
-        read_state <= 0;
-      end
-    endcase
+      endcase
+    end
   end
 
   initial begin

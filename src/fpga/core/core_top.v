@@ -559,6 +559,8 @@ module core_top (
   wire [24:0] ioctl_addr;
   wire [15:0] ioctl_dout;
 
+  wire rom_write_complete;
+
   always @(posedge clk_74a) begin
     if (dataslot_requestwrite) ioctl_download <= 1;
     else if (dataslot_allcomplete) ioctl_download <= 0;
@@ -568,16 +570,17 @@ module core_top (
       .ADDRESS_MASK_UPPER_4(4'h1),
       .ADDRESS_SIZE(25),
       .OUTPUT_WORD_SIZE(2),
-      .WRITE_MEM_CLOCK_DELAY(20),
-      .WRITE_MEM_EN_CYCLE_LENGTH(10)
+      .USE_WRITE_COMPLETE(1)
   ) data_loader (
       .clk_74a(clk_74a),
-      .clk_memory(clk_sys_36_864),
+      .clk_memory(clk_mem_110_592),
 
       .bridge_wr(bridge_wr),
       .bridge_endian_little(bridge_endian_little),
       .bridge_addr(bridge_addr),
       .bridge_wr_data(bridge_wr_data),
+
+      .write_complete(rom_write_complete),
 
       .write_en  (ioctl_wr),
       .write_addr(ioctl_addr),
@@ -597,20 +600,23 @@ module core_top (
   wire [15:0] sd_buff_din;
   wire [15:0] sd_buff_dout;
 
+  wire save_ram_write_complete;
+
   data_loader #(
       .ADDRESS_MASK_UPPER_4(4'h2),
       .ADDRESS_SIZE(21),
       .OUTPUT_WORD_SIZE(2),
-      .WRITE_MEM_CLOCK_DELAY(7),
-      .WRITE_MEM_EN_CYCLE_LENGTH(3)
+      .USE_WRITE_COMPLETE(1)
   ) save_data_loader (
       .clk_74a(clk_74a),
-      .clk_memory(clk_sys_36_864),
+      .clk_memory(clk_mem_110_592),
 
       .bridge_wr(bridge_wr),
       .bridge_endian_little(bridge_endian_little),
       .bridge_addr(bridge_addr),
       .bridge_wr_data(bridge_wr_data),
+
+      .write_complete(save_ram_write_complete),
 
       .write_en  (sd_buff_wr),
       .write_addr(sd_buff_addr_in),
@@ -621,7 +627,7 @@ module core_top (
       .ADDRESS_MASK_UPPER_4(4'h2),
       .ADDRESS_SIZE(21),
       .INPUT_WORD_SIZE(2),
-      .READ_MEM_CLOCK_DELAY(7)
+      .READ_MEM_CLOCK_DELAY(20)
   ) save_data_unloader (
       .clk_74a(clk_74a),
       .clk_memory(clk_sys_36_864),
@@ -758,6 +764,8 @@ module core_top (
       .ext_cart_download(is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download}),
       .bios_download(bios_download),
 
+      .rom_write_complete(rom_write_complete),
+
       .rtc_epoch_seconds(rtc_epoch_seconds),
 
       // Inputs
@@ -791,6 +799,8 @@ module core_top (
       .sd_buff_addr(sd_buff_addr),
       .sd_buff_din(sd_buff_din),
       .sd_buff_dout(sd_buff_dout),
+
+      .save_ram_write_complete(save_ram_write_complete),
 
       // Save states
       .ss_save(ss_save),
@@ -915,7 +925,6 @@ module core_top (
   );
 
   ///////////////////////////////////////////////
-
 
   wire clk_mem_110_592;
   wire clk_sys_36_864;

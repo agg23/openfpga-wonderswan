@@ -1,5 +1,6 @@
 *.rbf_r
 *.rev
+*.zip
 dist/**/*.bin
 src/**/*.bin
 src/sim/work/

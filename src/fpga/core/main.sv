@@ -15,6 +15,8 @@ module wonderswan (
     // 1 for B&W bios, 2 for color bios
     input wire [ 1:0] bios_download,
 
+    output wire rom_write_complete,
+
     input wire [31:0] rtc_epoch_seconds,
 
     // Inputs
@@ -48,6 +50,8 @@ module wonderswan (
     input wire [20:0] sd_buff_addr,
     output wire [15:0] sd_buff_din,
     input wire [15:0] sd_buff_dout,
+
+    output wire save_ram_write_complete,
 
     // Save states
     input wire ss_save,
@@ -177,6 +181,8 @@ module wonderswan (
 
   wire save_ram_ack;
 
+  assign save_ram_write_complete = save_ram_ack;
+
   sdram sdram (
       .init(~pll_core_locked),
       .clk (clk_mem_110_592),
@@ -187,7 +193,7 @@ module wonderswan (
       .ch1_din  (ioctl_dout),
       .ch1_req  (ioctl_wr),
       .ch1_rnw  (cart_download ? 1'b0 : 1'b1),
-      .ch1_ready(sdram_ack),
+      .ch1_ready(rom_write_complete),
       // .ch1_dout (),
 
       .ch2_addr (clearing_ram ? {4'b1000, clearing_ram_addr} : {4'b1000, sd_buff_addr[20:1]}),
