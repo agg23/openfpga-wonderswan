@@ -11,7 +11,7 @@
         "value": 1
       },
       {
-        "name": "System",
+        "name": "System Type",
         "id": 10,
         "type": "list",
         "enabled": true,
