@@ -25,18 +25,28 @@ macro load_asset(variable ioctl_download_addr, variable dataslot_id, variable er
   ld r2,#1 // Downloading start
   pmpw r1,r2 // Write ioctl_download = 1
 
-  ld r1,#dataslot_id
+  ld r3,#dataslot_id
   ld r14,#error_msg
-  loadf r1 // Load asset
+  loadf r3 // Load asset
 
   if error_msg != 0 {
     // Only throw error if an error msg provided
     jp nz,print_error_and_exit
   }
 
-  ld r1,#ioctl_download_addr // Set address for write
+  // ld r1,#ioctl_download_addr // Set address for write
   ld r2,#0 // Downloading end
   pmpw r1,r2 // Write ioctl_download = 0
+}
+
+macro load_bios_asset(variable ioctl_download_addr, variable dataslot_id, variable error_msg) {
+  ld r3,#dataslot_id
+  ld r14,#error_msg
+  queryslot r3 // Check if BIOS exists
+
+  jp nz,print_error_and_exit
+
+  load_asset(ioctl_download_addr, dataslot_id, error_msg)
 }
 
 // Error vector (0x0)
@@ -69,8 +79,8 @@ pmpw r1,r3 // Write is_color_cart = r3
 load_asset(cart_download_addr, rom_dataslot, rom_err_msg)
 
 // Load BIOS
-load_asset(bw_bios_download_addr, bw_bios_dataslot, bw_bios_err_msg)
-load_asset(color_bios_download_addr, color_bios_dataslot, color_bios_err_msg)
+load_bios_asset(bw_bios_download_addr, bw_bios_dataslot, bw_bios_err_msg)
+load_bios_asset(color_bios_download_addr, color_bios_dataslot, color_bios_err_msg)
 
 // Load save
 load_asset(save_download_addr, save_dataslot, 0)
@@ -99,7 +109,7 @@ rom_err_msg:
 db "Could not load ROM",0
 
 color_bios_err_msg:
-db "Could not load Color BIOS",0
+db "No Color BIOS found",0
 
 bw_bios_err_msg:
-db "Could not load B&W BIOS",0
+db "No B&W BIOS found",0

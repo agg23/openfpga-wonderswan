@@ -13,7 +13,7 @@
       {
         "name": "B&W BIOS",
         "id": 9,
-        "required": true,
+        "required": false,
         "filename": "bw.rom",
         "parameters": "0x0",
         "extensions": ["rom"],
@@ -22,7 +22,7 @@
       {
         "name": "Color BIOS",
         "id": 10,
-        "required": true,
+        "required": false,
         "filename": "color.rom",
         "parameters": "0x0",
         "extensions": ["rom"],
