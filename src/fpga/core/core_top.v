@@ -587,6 +587,30 @@ module core_top (
       .write_data(ioctl_dout)
   );
 
+  wire bios_wr;
+  wire [12:0] bios_addr;
+  wire [15:0] bios_dout;
+
+  data_loader #(
+      .ADDRESS_MASK_UPPER_4(4'h3),
+      .ADDRESS_SIZE(13),
+      .OUTPUT_WORD_SIZE(2),
+      .WRITE_MEM_CLOCK_DELAY(4),
+      .WRITE_MEM_EN_CYCLE_LENGTH(1)
+  ) bios_data_loader (
+      .clk_74a(clk_74a),
+      .clk_memory(clk_sys_36_864),
+
+      .bridge_wr(bridge_wr),
+      .bridge_endian_little(bridge_endian_little),
+      .bridge_addr(bridge_addr),
+      .bridge_wr_data(bridge_wr_data),
+
+      .write_en  (bios_wr),
+      .write_addr(bios_addr),
+      .write_data(bios_dout)
+  );
+
   wire [31:0] sd_read_data;
 
   wire sd_buff_wr;
@@ -762,6 +786,10 @@ module core_top (
       .ioctl_dout(ioctl_dout),
 
       .ext_cart_download(is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download}),
+
+      .bios_wr(bios_wr),
+      .bios_addr(bios_addr),
+      .bios_dout(bios_dout),
       .bios_download(bios_download),
 
       .rom_write_complete(rom_write_complete),

@@ -12,10 +12,16 @@ module wonderswan (
     input wire [15:0] ioctl_dout,
     // 1 for B&W cart, 2 for color cart
     input wire [ 1:0] ext_cart_download,
-    // 1 for B&W bios, 2 for color bios
-    input wire [ 1:0] bios_download,
 
     output wire rom_write_complete,
+
+    // BIOS in
+    // 1 for B&W bios, 2 for color bios
+    input wire [1:0] bios_download,
+
+    input wire bios_wr,
+    input wire [12:0] bios_addr,
+    input wire [15:0] bios_dout,
 
     input wire [31:0] rtc_epoch_seconds,
 
@@ -269,18 +275,14 @@ module wonderswan (
     paused <= savepause || syncpaused;
   end
 
-  reg [12:0] bios_wraddr;
-  reg [15:0] bios_wrdata;
-  reg        bios_wr;
-  reg        bios_wrcolor;
+  reg bios_wrbw;
+  reg bios_wrcolor;
   always @(posedge clk_sys_36_864) begin
-    bios_wr      <= 0;
+    bios_wrbw    <= 0;
     bios_wrcolor <= 0;
-    if (|bios_download & ioctl_wr) begin
-      bios_wrdata <= ioctl_dout;
-      bios_wraddr <= ioctl_addr[12:0];
+    if (|bios_download && bios_wr) begin
       if (bios_download[1] == 1'b1) bios_wrcolor <= 1'b1;
-      else bios_wr <= 1'b1;
+      else bios_wrbw <= 1'b1;
     end
   end
 
@@ -332,9 +334,9 @@ module wonderswan (
       .eeprom_rnw (~sd_buff_wr),
 
       // bios
-      .bios_wraddr (bios_wraddr),
-      .bios_wrdata (bios_wrdata),
-      .bios_wr     (bios_wr),
+      .bios_wraddr (bios_addr),
+      .bios_wrdata (bios_dout),
+      .bios_wr     (bios_wrbw),
       .bios_wrcolor(bios_wrcolor),
 
       // Video 

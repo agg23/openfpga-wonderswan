@@ -17,7 +17,7 @@
         "filename": "bw.rom",
         "parameters": "0x0",
         "extensions": ["rom"],
-        "address": "0x10000000"
+        "address": "0x30000000"
       },
       {
         "name": "Color BIOS",
@@ -26,7 +26,7 @@
         "filename": "color.rom",
         "parameters": "0x0",
         "extensions": ["rom"],
-        "address": "0x10000000"
+        "address": "0x30000000"
       },
       {
         "name": "Save",
