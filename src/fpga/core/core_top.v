@@ -685,6 +685,8 @@ module core_top (
   // wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
   wire [1:0] bios_download = {color_bios_download, bw_bios_download};
 
+  wire [1:0] ext_cart_download = is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download};
+
   wire [11:0] save_size;
   wire has_rtc;
 
@@ -721,7 +723,11 @@ module core_top (
   reg use_fastforward_sound;
 
   // Synced settings
+  wire reset_n_s;
   wire external_reset_s;
+
+  wire [1:0] ext_cart_download_s;
+  wire [1:0] bios_download_s;
 
   wire [1:0] configured_system_s;
 
@@ -736,10 +742,17 @@ module core_top (
   wire use_fastforward_sound_s;
 
   synch_3 #(
-      .WIDTH(11)
+      .WIDTH(6)
+  ) sys_control_s (
+      {reset_n, external_reset, ext_cart_download, bios_download},
+      {reset_n_s, external_reset_s, ext_cart_download_s, bios_download_s},
+      clk_mem_110_592
+  );
+
+  synch_3 #(
+      .WIDTH(10)
   ) settings_s (
       {
-        external_reset,
         configured_system,
         use_cpu_turbo,
         // use_rewind_capture,
@@ -750,7 +763,6 @@ module core_top (
         use_fastforward_sound
       },
       {
-        external_reset_s,
         configured_system_s,
         use_cpu_turbo_s,
         // use_rewind_capture_s,
@@ -777,7 +789,7 @@ module core_top (
       .clk_sys_36_864 (clk_sys_36_864),
       .clk_mem_110_592(clk_mem_110_592),
 
-      .reset_n(reset_n),
+      .reset_n(reset_n_s),
       .pll_core_locked(pll_core_locked),
       .external_reset(external_reset_s),
 
@@ -785,12 +797,12 @@ module core_top (
       .ioctl_addr(ioctl_addr),
       .ioctl_dout(ioctl_dout),
 
-      .ext_cart_download(is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download}),
+      .ext_cart_download(ext_cart_download_s),
 
       .bios_wr(bios_wr),
       .bios_addr(bios_addr),
       .bios_dout(bios_dout),
-      .bios_download(bios_download),
+      .bios_download(bios_download_s),
 
       .rom_write_complete(rom_write_complete),
 
