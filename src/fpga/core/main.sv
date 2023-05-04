@@ -102,7 +102,6 @@ module wonderswan (
     output wire [15:0] audio_r
 );
 
-  wire                                                   [63:0] status = 0;
   wire savepause = 0;
 
   wire                                                   [13:0] joystick_0 = 0;
@@ -188,8 +187,11 @@ module wonderswan (
   end
 
   wire save_ram_ack;
+  reg  rtc_write_ack = 0;
 
-  assign save_ram_write_complete = save_ram_ack;
+  // EEPROM is in BRAM. Will ack immediately after write
+  // If in extra_data_addr space, ack when process below states
+  assign save_ram_write_complete = extra_data_addr ? rtc_write_ack : saveIsSRAM ? save_ram_ack : sd_buff_wr;
 
   sdram sdram (
       .init(~pll_core_locked),
@@ -204,11 +206,11 @@ module wonderswan (
       .ch1_ready(rom_write_complete),
       // .ch1_dout (),
 
-      .ch2_addr (clearing_ram ? {4'b1000, clearing_ram_addr} : {4'b1000, sd_buff_addr[20:1]}),
-      .ch2_din  (clearing_ram ? 16'b0 : sd_buff_dout),
-      .ch2_dout (sdram_din),
-      .ch2_req  ((saveIsSRAM && (sd_buff_rd || sd_buff_wr)) || clearing_ram_write),
-      .ch2_rnw  (~clearing_ram_write && ~sd_buff_wr),
+      .ch2_addr(clearing_ram ? {4'b1000, clearing_ram_addr} : {4'b1000, sd_buff_addr[20:1]}),
+      .ch2_din(clearing_ram ? 16'b0 : sd_buff_dout),
+      .ch2_dout(sdram_din),
+      .ch2_req  ((saveIsSRAM && (sd_buff_rd || sd_buff_wr) && ~extra_data_addr) || clearing_ram_write),
+      .ch2_rnw(~clearing_ram_write && ~sd_buff_wr),
       .ch2_ready(save_ram_ack),
 
       .ch3_addr(EXTRAM_addr[24:1]),
@@ -325,12 +327,11 @@ module wonderswan (
       .hasRTC(has_rtc),  // Unused
 
       // eeprom
-      .eepromWrite(eepromWrite),
+      // .eepromWrite(eepromWrite),
       .eeprom_addr(sd_buff_addr[20:1]),
       .eeprom_din (sd_buff_dout),
       .eeprom_dout(eeprom_din),
-      .eeprom_req (~saveIsSRAM && (sd_buff_rd || sd_buff_wr)),
-      // .eeprom_rnw (~save_download || extra_data_addr),
+      .eeprom_req (~saveIsSRAM && (sd_buff_rd || sd_buff_wr) && ~extra_data_addr),
       .eeprom_rnw (~sd_buff_wr),
 
       // bios
@@ -618,13 +619,6 @@ module wonderswan (
   end
 
   /////////////////////////  SRAM/EEPROM SAVE/LOAD  /////////////////////////////
-  wire bk_load = status[41];
-  wire bk_save = status[42];
-  wire bk_autosave = status[43];
-  wire bk_write = (EXTRAM_addr[24] && EXTRAM_write) || eepromWrite;
-
-  wire eepromWrite;
-
   reg bk_record_rtc = 0;
   reg did_receive_sys_rtc = 0;
   reg is_save_rtc_ready = 0;
@@ -639,20 +633,22 @@ module wonderswan (
   wire saveIsSRAM = (ramtype == 8'h01) || (ramtype == 8'h02) || (ramtype == 8'h03) || (ramtype == 8'h04) || (ramtype == 8'h05);
 
   always_comb begin
-    save_size <= 0;
+    save_size = 0;
 
-    if (ramtype == 8'h01) save_size <= 12'h10;
-    if (ramtype == 8'h02) save_size <= 12'h40;
-    if (ramtype == 8'h03) save_size <= 12'h100;
-    if (ramtype == 8'h04) save_size <= 12'h200;
-    if (ramtype == 8'h05) save_size <= 12'h400;
+    if (ramtype == 8'h01) save_size = 12'h10;
+    if (ramtype == 8'h02) save_size = 12'h40;
+    if (ramtype == 8'h03) save_size = 12'h100;
+    if (ramtype == 8'h04) save_size = 12'h200;
+    if (ramtype == 8'h05) save_size = 12'h400;
     // These are EEPROM saves
-    if (ramtype == 8'h10) save_size <= 12'h004;
-    if (ramtype == 8'h20) save_size <= 12'h004;
-    if (ramtype == 8'h50) save_size <= 12'h004;
+    if (ramtype == 8'h10) save_size = 12'h004;
+    if (ramtype == 8'h20) save_size = 12'h004;
+    if (ramtype == 8'h50) save_size = 12'h004;
   end
 
   always @(posedge clk_sys_36_864) begin
+    rtc_write_ack <= 0;
+
     if (rtc_epoch_seconds != 0) begin
       // RTC received
       did_receive_sys_rtc <= 1;
@@ -669,6 +665,8 @@ module wonderswan (
       if (sd_buff_addr[8:0] == 0 && sd_buff_wr && sd_buff_dout == "RT") begin
         bk_record_rtc <= 1;
         RTC_load <= 0;
+
+        rtc_write_ack <= 1;
       end
     end
 
@@ -677,6 +675,8 @@ module wonderswan (
         // Word addressing (3:1)
         // Skip first word of row ("RT")
         time_dout[{sd_buff_addr[3:1]-3'd1, 4'b0000}+:16] <= sd_buff_dout;
+
+        rtc_write_ack <= 1;
       end
 
       if (sd_buff_addr[8:1] == 5) begin

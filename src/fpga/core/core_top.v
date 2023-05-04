@@ -630,6 +630,7 @@ module core_top (
       .ADDRESS_MASK_UPPER_4(4'h2),
       .ADDRESS_SIZE(21),
       .OUTPUT_WORD_SIZE(2),
+      .WRITE_MEM_CLOCK_DELAY(20),
       .USE_WRITE_COMPLETE(1)
   ) save_data_loader (
       .clk_74a(clk_74a),
