@@ -776,7 +776,7 @@ set_global_assignment -name VHDL_FILE core/rtl/divider.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE core/rtl/ddram.sv
 set_global_assignment -name VHDL_FILE core/rtl/cpu.vhd
 set_global_assignment -name VHDL_FILE core/rtl/bus_savestates.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE core/main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE core/wonderswan.sv
 set_global_assignment -name SYSTEMVERILOG_FILE core/sync_fifo.sv
 set_global_assignment -name SYSTEMVERILOG_FILE core/sound_i2s.sv
 set_global_assignment -name SYSTEMVERILOG_FILE core/data_unloader.sv

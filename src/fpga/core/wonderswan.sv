@@ -102,15 +102,9 @@ module wonderswan (
     output wire [15:0] audio_r
 );
 
-  wire savepause = 0;
-
-  wire                                                   [13:0] joystick_0 = 0;
-
-  wire                                                   [15:0]                 cart_addr;
-  wire                                                                          cart_rd;
-  wire                                                                          cart_wr;
-  reg                                                                           cart_ready = 0;
-  reg                                                                           ioctl_wr_1 = 0;
+  wire                                                   [15:0] cart_addr;
+  wire                                                          cart_rd;
+  wire                                                          cart_wr;
 
   wire ioctl_download = cart_download || |bios_download;
 
@@ -120,15 +114,15 @@ module wonderswan (
   // wire colorcart_download = ioctl_download && (filetype == 8'h01);
   // wire bios_download = ioctl_download && (filetype == 8'h00 || filetype == 8'h40);
 
-  wire                                                                          EXTRAM_doRefresh;
-  wire                                                                          EXTRAM_read;
-  wire                                                                          EXTRAM_write;
-  wire                                                   [24:0]                 EXTRAM_addr;
-  wire                                                   [15:0]                 EXTRAM_datawrite;
-  wire                                                   [15:0]                 EXTRAM_dataread;
-  wire                                                   [ 1:0]                 EXTRAM_be;
+  wire                                                          EXTRAM_doRefresh;
+  wire                                                          EXTRAM_read;
+  wire                                                          EXTRAM_write;
+  wire                                                   [24:0] EXTRAM_addr;
+  wire                                                   [15:0] EXTRAM_datawrite;
+  wire                                                   [15:0] EXTRAM_dataread;
+  wire                                                   [ 1:0] EXTRAM_be;
 
-  wire                                                   [15:0]                 sdram_din;
+  wire                                                   [15:0] sdram_din;
 
   assign sd_buff_din = extra_data_addr ? sd_buff_din_time : saveIsSRAM ? sdram_din : eeprom_din;
 
@@ -175,7 +169,7 @@ module wonderswan (
           clearing_ram_write <= 0;
           clearing_ram_state <= CLEARING_WRITE;
 
-          clearing_ram_addr  <= clearing_ram_addr + 1;
+          clearing_ram_addr  <= clearing_ram_addr + 20'h1;
 
           if (&clearing_ram_addr) begin
             // Finished writing
@@ -235,9 +229,11 @@ module wonderswan (
       .SDRAM_CKE(dram_cke)
   );
 
-  reg [15:0] lastdata[0:4];
+  reg [15:0] lastdata             [0:4];
 
-  reg colorcart_downloaded;
+  reg        ioctl_wr_1 = 0;
+
+  reg        colorcart_downloaded;
 
   always @(posedge clk_mem_110_592) begin
     ioctl_wr_1 <= ioctl_wr;
@@ -262,8 +258,7 @@ module wonderswan (
   always @(posedge clk_sys_36_864) begin
     old_download <= cart_download;
     if (old_download & ~cart_download) begin
-      mask_addr  <= ioctl_addr[24:0] + 1'd1;
-      cart_ready <= 1;
+      mask_addr <= ioctl_addr[24:0] + 1'd1;
     end
   end
 
@@ -274,7 +269,7 @@ module wonderswan (
 
   reg paused;
   always_ff @(posedge clk_sys_36_864) begin
-    paused <= savepause || syncpaused;
+    paused <= syncpaused;
   end
 
   reg bios_wrbw;
@@ -293,14 +288,12 @@ module wonderswan (
   reg [79:0] time_dout = 80'd0;
   wire [79:0] time_din;
   assign time_din[42+32+:80-(42+32)] = '0;
-  reg                                                         RTC_load = 0;
+  reg                                      RTC_load = 0;
 
-  wire                    [ 7:0] ramtype = lastdata[2][15:8];
+  wire [ 7:0] ramtype = lastdata[2][15:8];
 
-  wire                    [15:0]                              eeprom_din;
-  wire eeprom_ack = 1'b1;
-
-  reg                     [31:0]                              prev_rtc_epoch_seconds = 0;
+  wire [15:0]                              eeprom_din;
+  reg  [31:0]                              prev_rtc_epoch_seconds = 0;
 
   always @(posedge clk_sys_36_864) begin
     prev_rtc_epoch_seconds <= rtc_epoch_seconds;
@@ -624,8 +617,6 @@ module wonderswan (
   reg is_save_rtc_ready = 0;
 
   wire extra_data_addr = sd_buff_addr >= (save_size * 512);
-
-  // wire savepause = bk_state;
 
   // assign has_rtc = lastdata[1][8];
   assign has_rtc = 1'b1;

@@ -7,8 +7,8 @@
       "description": "WonderSwan and WonderSwan Color by Bandai",
       "author": "agg23",
       "url": "https://github.com/agg23/openfpga-wonderswan",
-      "version": "1.0.0",
-      "date_release": "2023-01-15"
+      "version": "1.0.1-beta1",
+      "date_release": "2023-05-04"
     },
     "framework": {
       "target_product": "Analogue Pocket",

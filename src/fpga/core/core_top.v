@@ -346,9 +346,10 @@ module core_top (
         32'hC: begin
           color_bios_download <= bridge_wr_data[0];
         end
-        32'h10: begin
-          save_download <= bridge_wr_data[0];
-        end
+        // Sent by CHIP32
+        // 32'h10: begin
+        //   save_download <= bridge_wr_data[0];
+        // end
 
         32'h050: begin
           reset_delay <= 32'h100000;
@@ -554,17 +555,11 @@ module core_top (
       .ss_busy(ss_busy)
   );
 
-  reg ioctl_download = 0;
   wire ioctl_wr;
   wire [24:0] ioctl_addr;
   wire [15:0] ioctl_dout;
 
   wire rom_write_complete;
-
-  always @(posedge clk_74a) begin
-    if (dataslot_requestwrite) ioctl_download <= 1;
-    else if (dataslot_allcomplete) ioctl_download <= 0;
-  end
 
   data_loader #(
       .ADDRESS_MASK_UPPER_4(4'h1),
@@ -670,22 +665,17 @@ module core_top (
   wire [15:0] audio_l;
   wire [15:0] audio_r;
 
+  // Driven by CHIP32
   reg cart_download = 0;
   reg is_color_cart = 0;
 
   reg bw_bios_download = 0;
   reg color_bios_download = 0;
 
-  reg save_download = 0;
+  // Unused
+  // reg save_download = 0;
 
-  // wire bw_cart = ioctl_download && dataslot_requestwrite_id == 0;
-  // wire color_cart = ioctl_download && dataslot_requestwrite_id == 1;
-  // wire [1:0] cart_download = {color_cart, bw_cart};
-
-  // wire bw_bios = ioctl_download && dataslot_requestwrite_id == 9;
-  // wire color_bios = ioctl_download && dataslot_requestwrite_id == 10;
   wire [1:0] bios_download = {color_bios_download, bw_bios_download};
-
   wire [1:0] ext_cart_download = is_color_cart ? {cart_download, 1'b0} : {1'b0, cart_download};
 
   wire [11:0] save_size;
